@@ -15,7 +15,7 @@ import "C"
 import (
 	"errors"
 	"fmt"
-	"github.com/davecgh/go-spew/spew"
+	//"github.com/davecgh/go-spew/spew"
 	"time"
 	"unsafe"
 )
@@ -274,9 +274,11 @@ func (s SystemPort) readEvent() (event Event, err error) {
 
 func (s *SystemPort) writeEvent(event Event) error {
 	status := event.Command + event.Channel
-	message := ((event.Data2 << 16) & 0xFF0000) | ((event.Data1 << 8) & 0xFF00) | (status & 0xFF)
+	message := ((uint32(event.Data2) << 16) & 0xFF0000) |
+		((uint32(event.Data1) << 8) & 0x00FF00) |
+		(uint32(status) & 0x0000FF)
 	if debug {
-		spew.Dump(event, message)
+		//spew.Dump(event, message)
 		fmt.Printf("%b\n", message)
 	}
 	buffer := C.PmEvent{C.PmMessage(message), 0}
@@ -295,4 +297,3 @@ func (s *SystemPort) WriteRawEvent(e Event) error {
 	}
 	return s.writeEvent(e)
 }
-

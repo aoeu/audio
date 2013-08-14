@@ -1,9 +1,9 @@
 package main
 
 import (
-	"fmt"
 	"audio/midi"
 	"audio/midi/controller"
+	"fmt"
 	"time"
 )
 

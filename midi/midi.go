@@ -6,9 +6,9 @@ const (
 )
 
 const (
-	NOTE_ON int = 144
+	NOTE_ON  int = 144
 	NOTE_OFF int = 128
-	CC	int = 176
+	CC       int = 176
 )
 
 type Event struct {

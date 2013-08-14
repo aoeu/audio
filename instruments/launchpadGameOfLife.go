@@ -1,9 +1,9 @@
 package main
 
 import (
-	"fmt"
 	"audio/midi"
 	"audio/midi/controller"
+	"fmt"
 	"time"
 )
 
@@ -211,7 +211,6 @@ func infinity() (b Board) {
 }
 
 func handleButtons(l *controller.Launchpad, nextBoards chan Board, quit chan bool) {
-	//l.AllGridLightsOn(OFF_COLOR)
 	for {
 		select {
 		case cc := <-l.OutPort().ControlChanges():
@@ -278,15 +277,13 @@ func main() {
 	launchpad.Open()
 	go launchpad.Run()
 
-	launchpad.AllGridLightsOn(OFF_COLOR)
-
-	wait := make(chan bool)
-	<-wait // wait forever
-
 	nextBoards := make(chan Board, 1)
 	nextBoards <- glider()
 
 	quit := make(chan bool, 1)
 	go handleButtons(&launchpad, nextBoards, quit)
 	go loop(&launchpad, nextBoards, quit)
+
+	wait := make(chan bool)
+	<-wait // wait forever
 }

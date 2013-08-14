@@ -1,8 +1,6 @@
 package controller
 
 import "audio/midi"
-import "time"
-
 
 type Launchpad struct {
 	device           midi.Device
@@ -40,7 +38,6 @@ func (l Launchpad) Open() (err error) {
 }
 
 func (l Launchpad) Close() (err error) {
-	l.Reset()
 	l.stop <- true
 	err = l.device.Close()
 	if err != nil {
@@ -57,6 +54,7 @@ func (l Launchpad) Run() {
 	go l.device.Run()
 	go l.transposer.Run()
 	go l.auxIns.Run()
+	l.Reset()
 	for {
 		select {
 		// For the launchpad's buttons.
@@ -106,7 +104,7 @@ func (l Launchpad) OutPort() midi.Port {
 
 func (l *Launchpad) Reset() (err error) {
 	// Turns all lights off and clears all buffers.
-	l.inPort.ControlChanges() <- midi.ControlChange{Channel: 0, ID: 0, Value: 0}
+	l.inPort.WriteRawEvent(midi.Event{0, 176, 0, 0})
 	return
 }
 
@@ -146,32 +144,11 @@ func (l Launchpad) AllLightsOn(color int) (err error) {
 	return
 }
 
-func (l *Launchpad) AllGridLightsOn_2(color int) (err error) {
-	//l.Reset()
-	// Send a Channel 3 Note On, Velocity must be > 0, to enter rapid-update mode.
-	l.inPort.NoteOns() <- midi.Note{Channel: 2, Key: 64, Velocity: 127}
-	time.Sleep(100 * time.Millisecond)
-	for i := 0; i < 32; i++ {
-		l.inPort.ControlChanges() <- midi.ControlChange{Channel: 2, ID: color, Value: color}
-		if err != nil {
-			return
-		}
-	}
-	// Do not turn on the side buttons. (i.e. "Automap" and "Scene Select" buttons.)
-	for i := 0; i < 8; i++ {
-		l.inPort.ControlChanges() <- midi.ControlChange{Channel: 2, ID: Black, Value: Black}
-		if err != nil {
-			return
-		}
-	}
-	time.Sleep(100 * time.Millisecond)
-	l.inPort.NoteOffs() <-midi.Note{Channel: 2, Key: 64, Velocity: 0}
-	return
-}
-
 func (l *Launchpad) AllGridLightsOn(color int) (err error) {
-	// Send a Channel 3 Note On, Velocity must be > 0, to enter rapid-update mode.
-	l.inPort.WriteRawEvent(midi.Event{2, midi.NOTE_ON, 0, 127})
+	l.Reset()
+	// BUG: The Launchpad spec says the next message should be channel 3.
+	// Channel 3 doesn't work, but 4 and up do...
+	l.inPort.WriteRawEvent(midi.Event{3, midi.NOTE_ON, 0, 0})
 	for i := 0; i < 32; i++ {
 		l.inPort.WriteRawEvent(midi.Event{2, midi.NOTE_ON, color, color})
 		if err != nil {
