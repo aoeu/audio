@@ -15,11 +15,12 @@ On Connection implementations:
     Chain: a serial connection of an arbitrary number of Pipes.
 */
 
+// Represents a connection between MIDI devices.
 type Connection interface {
-	Init()
 	Run()
 }
 
+// A Pipe transmits MIDI data from a device's MIDI output to another device's MIDI input.
 // Implements Connection, one to one.
 type Pipe struct {
 	From Device
@@ -27,6 +28,7 @@ type Pipe struct {
 	stop chan bool
 }
 
+// Creates a new Pipe, opening the devices sent as parameters.
 func NewPipe(from, to Device) (pipe Pipe, err error) {
 	pipe = Pipe{from, to, make(chan bool, 1)}
 	err = pipe.From.Open()
@@ -40,6 +42,7 @@ func NewPipe(from, to Device) (pipe Pipe, err error) {
 	return
 }
 
+// Ends transmission of MIDI data and closes the connected MIDI devices.
 func (p Pipe) Stop() (err error) {
 	if debug {
 		fmt.Println("Pipe Stop()")
@@ -53,6 +56,8 @@ func (p Pipe) Stop() (err error) {
 	return
 }
 
+// TODO: Should the Run method be named "Start" instead? Think in context of the `go` keyword.
+// Begins transmission of MIDI data between the connected MIDI devices.
 func (p Pipe) Run() {
 	input := p.From.OutPort()
 	output := p.To.InPort()
@@ -84,6 +89,7 @@ func (p Pipe) Run() {
 	}
 }
 
+// A Router transmits MIDI data from one MIDI device to many MIDI devices.
 // Implements Connection, one to many.
 type Router struct {
 	From Device
@@ -91,6 +97,7 @@ type Router struct {
 	stop chan bool
 }
 
+// Creates a new Router and opens MIDI devices sent as parameters.
 func NewRouter(from Device, to ...Device) (r Router, err error) {
 	r = Router{from, to, make(chan bool, 1)}
 	err = r.From.Open()
@@ -106,6 +113,7 @@ func NewRouter(from Device, to ...Device) (r Router, err error) {
 	return
 }
 
+// Ends transmission of MIDI data and closes the connected MIDI devices.
 func (r Router) Stop() (err error) {
 	r.stop <- true
 	err = r.From.Close()
@@ -121,6 +129,7 @@ func (r Router) Stop() (err error) {
 	return
 }
 
+// Begins transmission of MIDI data between the connected MIDI devices.
 func (r Router) Run() {
 	go r.From.Run()
 	for _, to := range r.To {
@@ -161,6 +170,7 @@ func (r Router) Run() {
 	}
 }
 
+// A Funnel merges MIDI data from many MIDI devices and transmits the data to one MIDI device.
 // Implements Connection, many to one.
 type Funnel struct {
 	From []Device
@@ -168,6 +178,7 @@ type Funnel struct {
 	stop chan bool
 }
 
+// Creates a new Funnel and open's the MIDI devices sent as parameters.
 func NewFunnel(to Device, from ...Device) (f Funnel, err error) {
 	if debug {
 		fmt.Println("Funnel Open()")
@@ -186,6 +197,7 @@ func NewFunnel(to Device, from ...Device) (f Funnel, err error) {
 	return
 }
 
+// Ends transmission of MIDI data and closes the connected MIDI devices.
 func (f Funnel) Stop() (err error) {
 	f.stop <- true
 	err = f.To.Close()
@@ -201,6 +213,7 @@ func (f Funnel) Stop() (err error) {
 	return
 }
 
+// Begins transmission of MIDI data between the connected MIDI devices.
 func (f Funnel) Run() {
 	if debug {
 		fmt.Println("Funnel Run()")
@@ -227,12 +240,14 @@ func (f Funnel) Run() {
 	}
 }
 
+// A Chain connects a series of MIDI devices (like creating many, serially chained pipes).
 // Implements Connection, serially chained pipes.
 type Chain struct {
 	Devices []Device
 	pipes   []Pipe
 }
 
+// Creates a new Chain and open's the attached devices.
 func NewChain(devices ...Device) (c Chain, err error) {
 	numDevices := len(devices)
 	c = Chain{devices, make([]Pipe, numDevices-1)}
@@ -246,6 +261,7 @@ func NewChain(devices ...Device) (c Chain, err error) {
 	return
 }
 
+// Ends transmission of MIDI data and closes the connected MIDI devices.
 func (c *Chain) Stop() (err error) {
 	for _, pipe := range c.pipes {
 		err = pipe.Stop()
@@ -253,6 +269,7 @@ func (c *Chain) Stop() (err error) {
 	return err
 }
 
+// Begins transmission of MIDI data between the connected MIDI devices.
 func (c Chain) Run() {
 	for _, pipe := range c.pipes {
 		go pipe.Run()
