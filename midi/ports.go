@@ -161,13 +161,14 @@ func (s SystemPort) RunInPort() {
 	for {
 		select {
 		case noteOn := <-s.NoteOns():
-			s.writeEvent(Event{noteOn.Channel, 144,
+			s.writeEvent(Event{noteOn.Channel, NOTE_ON,
 				noteOn.Key, noteOn.Velocity})
 		case noteOff := <-s.NoteOffs():
-			s.writeEvent(Event{noteOff.Channel, 128,
+			s.writeEvent(Event{noteOff.Channel, NOTE_OFF,
 				noteOff.Key, noteOff.Velocity})
 		case cc := <-s.ControlChanges():
-			s.writeEvent(Event{cc.Channel, 176, cc.ID, cc.Value})
+			s.writeEvent(Event{cc.Channel, CONTROL_CHANGE,
+				cc.ID, cc.Value})
 		case <-s.stop:
 			return
 		}
@@ -200,16 +201,16 @@ func (s SystemPort) RunOutPort() {
 				fmt.Println("SystemPort RunOutputPort()", s.id, e)
 			}
 			switch e.Command {
-			case 144: // Note On
+			case NOTE_ON:
 				if e.Data2 == 0 {
 					// Note On with velocity 0 is a Note Off.
 					s.NoteOffs() <- Note{e.Channel, e.Data1, e.Data2}
 				} else {
 					s.NoteOns() <- Note{e.Channel, e.Data1, e.Data2}
 				}
-			case 128: // Note Off
+			case NOTE_OFF:
 				s.NoteOffs() <- Note{e.Channel, e.Data1, e.Data2}
-			case 176: // Control Change
+			case CONTROL_CHANGE:
 				name, ok := ControlChangeNames[e.Data1]
 				if !ok {
 					name = "Unknown"

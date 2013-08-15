@@ -1,14 +1,14 @@
 package midi
 
 const (
-	debug      bool = true
+	debug      bool = false
 	BufferSize int  = 1
 )
 
 const (
-	NOTE_ON  int = 144
-	NOTE_OFF int = 128
-	CC       int = 176
+	NOTE_ON        int = 144
+	NOTE_OFF       int = 128
+	CONTROL_CHANGE int = 176
 )
 
 type Event struct {
