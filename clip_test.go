@@ -36,6 +36,41 @@ func TestNewWaveFromClip(t *testing.T) {
 	}
 }
 
+func TestIsEqual(t *testing.T) {
+	fileName := "samples/testing/bass_drum.wav"
+	bass1, err := NewClipFromWave(fileName)
+	if err != nil {
+		t.Error(err)
+	}
+	bass2, err := NewClipFromWave(fileName)
+	if err != nil {
+		t.Error(err)
+	}
+	same, err := bass1.IsEqual(bass2)
+	if !same {
+		t.Errorf("Expected true in comparison and received false: %s\n",
+			err.Error())
+	}
+	bass2.Samples[1][777] = 777 // Alter data, check for expected error.
+	same, err = bass1.IsEqual(bass2)
+	if same {
+		t.Errorf("Expected false in comparison and received true." +
+			"Sample data differs.")
+	}
+	bass2.Samples[1] = bass2.Samples[1][0:100] // Alter channel length.
+	same, err = bass1.IsEqual(bass2)
+	if same {
+		t.Errorf("Expected false in comparison and received true." +
+			"Channel lengths differ.")
+	}
+	bass2.Samples = bass2.Samples[0:1] // Change to mono.
+	same, err = bass1.IsEqual(bass2)
+	if same {
+		t.Errorf("Expected false in comparison and recieved true." +
+			"Number of channels differ..")
+	}
+}
+
 func TestAppend(t *testing.T) {
 	bass, err := NewClipFromWave("samples/testing/bass_drum.wav")
 	if err != nil {
@@ -61,3 +96,71 @@ func TestAppend(t *testing.T) {
 		}
 	}
 }
+
+func TestMix(t *testing.T) {
+	bass, err := NewClipFromWave("samples/testing/bass_drum.wav")
+	if err != nil {
+		t.Error(err)
+	}
+	snare, err := NewClipFromWave("samples/testing/snare_drum.wav")
+	if err != nil {
+		t.Error(err)
+	}
+	if err := bass.Mix(snare); err != nil {
+		t.Error(err)
+	}
+
+	// Audacity and sox differ in output (and methodology) for mixing files.
+	// The output of this program will differ from either of them.
+	/*
+		both, err := NewClipFromWave("samples/testing/bass_and_snare.wav")
+		if err != nil {
+			t.Error(err)
+		}
+		same, err := bass.IsEqual(both)
+		if !same {
+			t.Error(err)
+		}
+	*/
+}
+
+func TestSlice(t *testing.T) {
+	bass, err := NewClipFromWave("samples/testing/bass_drum.wav")
+	if err != nil {
+		t.Error(err)
+	}
+	both, err := NewClipFromWave("samples/testing/bass_then_snare.wav")
+	if err != nil {
+		t.Error(err)
+	}
+	bass2, err := both.Slice(0, 21266)
+	if err != nil {
+		t.Error(err)
+	}
+	same, err := bass.IsEqual(bass2)
+	if !same {
+		t.Error(err)
+	}
+}
+
+func TestSplit(t *testing.T) {
+	bass, err := NewClipFromWave("samples/testing/bass_drum.wav")
+	if err != nil {
+		t.Error(err)
+	}
+	bassThenBass, err := NewClipFromWave("samples/testing/bass_then_bass.wav")
+	if err != nil {
+		t.Error(err)
+	}
+	basses, err := bassThenBass.Split(2)
+	if err != nil {
+		t.Error(err)
+	}
+	same, err := bass.IsEqual((basses[0]))
+	if !same {
+		t.Error(err)
+	}
+}
+
+// TODO: TestStretch()
+// TODO: TestReverse()
