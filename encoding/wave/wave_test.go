@@ -45,11 +45,12 @@ func BenchmarkRead(b *testing.B) {
 }
 
 func TestWriteFile(t *testing.T) {
-	origFileName := "../../samples/loops/beat.wav"
+	origFileName := "../../samples/testing/bass_drum.wav"
 	copyFileName := "/tmp/beat_copy.wav"
 	orig, _ := OpenFile(origFileName)
 	copy := NewFile(copyFileName)
-	copy.Append(&orig)
+	copy.Samples = orig.Samples
+	copy.UpdateHeader()
 	err := copy.Write()
 	if err != nil {
 		t.Errorf(err.Error())

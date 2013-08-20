@@ -3,6 +3,7 @@ package audio
 import (
 	"audio/encoding/wave"
 	"errors"
+	"strings"
 )
 
 type Clip struct {
@@ -30,13 +31,27 @@ func NewClipFromWave(waveFileName string) (*Clip, error) {
 	numChannels := int(w.Header.NumChannels)
 	c = NewClip(int(w.Header.NumChannels))
 	// Deinterlace the wave sample data into disparate slices.
-	for i := 0; i < len(w.Samples)/numChannels; i++ {
-		for chanNum := 0; chanNum < numChannels; chanNum++ {
-			offset := i + chanNum
-			c.Samples[chanNum] = append(c.Samples[chanNum], w.Samples[offset])
-		}
+	for i, sample := range w.Samples {
+		c.Samples[i%numChannels] = append(c.Samples[i%numChannels], sample)
 	}
 	return c, nil
+}
+
+func NewWaveFromClip(c *Clip) (w *wave.File) {
+	fileName := c.Name
+	if !strings.Contains(fileName, ".wav") {
+		fileName += ".wav"
+	}
+	w = wave.NewFile(fileName)
+	w.Header.NumChannels = int16(len(c.Samples))
+	// Interlace the slices of samples into a single slice.
+	for offset := 0; offset < len(c.Samples[0]); offset++ {
+		for chanNum := 0; chanNum < len(c.Samples); chanNum++ {
+			w.Samples = append(w.Samples, c.Samples[chanNum][offset])
+		}
+	}
+	w.UpdateHeader()
+	return w
 }
 
 func compareChannels(s *Clip, t *Clip) error {

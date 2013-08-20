@@ -2,7 +2,6 @@ package audio
 
 import (
 	"audio/encoding/wave"
-	"fmt"
 	"testing"
 )
 
@@ -20,21 +19,33 @@ func TestNewClipFromWave(t *testing.T) {
 	}
 }
 
+func TestNewWaveFromClip(t *testing.T) {
+	fileName := "samples/loops/ellie.wav"
+	c, _ := NewClipFromWave(fileName)
+	w, _ := wave.OpenFile(fileName)
+	w2 := NewWaveFromClip(c)
+	if len(w.Samples) != len(w2.Samples) {
+		t.Errorf("Expected length %d and have length %d\n",
+			len(w.Samples), len(w2.Samples))
+	}
+	for i, sample := range w.Samples {
+		if sample != w2.Samples[i] {
+			t.Errorf("Expected %d instead of %d for sample offset %d\n",
+				sample, w2.Samples[i], i)
+		}
+	}
+}
+
 func TestAppend(t *testing.T) {
 	bass, err := NewClipFromWave("samples/testing/bass_drum.wav")
 	if err != nil {
 		t.Error(err)
 	}
-	snare, err := NewClipFromWave("samples/testing/snare_drum.wav")
+	both, err := NewClipFromWave("samples/testing/bass_drum_twice.wav")
 	if err != nil {
 		t.Error(err)
 	}
-	both, err := NewClipFromWave("samples/testing/bass_then_snare.wav")
-	if err != nil {
-		t.Error(err)
-	}
-	fmt.Println(len(bass.Samples[0]), len(snare.Samples[0]), len(both.Samples[0]))
-	bass.Append(snare)
+	bass.Append(bass)
 	for chanNum := 0; chanNum < len(bass.Samples); chanNum++ {
 		bassLen := len(bass.Samples[chanNum])
 		bothLen := len(both.Samples[chanNum])
