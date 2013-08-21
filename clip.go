@@ -87,6 +87,10 @@ func (s *Clip) IsEqual(t *Clip) (bool, error) {
 	return true, nil
 }
 
+func (c *Clip) LenPerChannel() int {
+	return len(c.Samples[0])
+}
+
 // Append's another Clip's audio data to this Clip, increasing the length.
 func (target *Clip) Append(source *Clip) error {
 	if len(target.Samples) != len(source.Samples) {
