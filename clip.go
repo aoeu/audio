@@ -14,8 +14,9 @@ const (
 
 type Clip struct {
 	// Hardcoding for 16-bit.
-	Samples [][]int16 // Channels of Samples, non interlaced.
-	Name    string
+	Samples    [][]int16 // Channels of Samples, non interlaced.
+	Name       string
+	SampleRate int
 }
 
 func NewClip(numChannels int) *Clip {
@@ -36,6 +37,7 @@ func NewClipFromWave(waveFileName string) (*Clip, error) {
 	c.Name = w.FileName // TODO: Remove file extensions.
 	numChannels := int(w.Header.NumChannels)
 	c = NewClip(int(w.Header.NumChannels))
+	c.SampleRate = int(w.Header.SampleRate)
 	// Deinterlace the wave sample data into disparate slices.
 	for i, sample := range w.Samples {
 		c.Samples[i%numChannels] = append(c.Samples[i%numChannels], sample)
@@ -50,6 +52,7 @@ func NewWaveFromClip(c *Clip) (w *wave.File) {
 	}
 	w = wave.NewFile(fileName)
 	w.Header.NumChannels = int16(len(c.Samples))
+	w.Header.SampleRate = int32(c.SampleRate)
 	// Interlace the slices of samples into a single slice.
 	for offset := 0; offset < len(c.Samples[0]); offset++ {
 		for chanNum := 0; chanNum < len(c.Samples); chanNum++ {
@@ -89,6 +92,11 @@ func (s *Clip) IsEqual(t *Clip) (bool, error) {
 
 func (c *Clip) LenPerChannel() int {
 	return len(c.Samples[0])
+}
+
+func (c *Clip) LenMilliseconds() int64 {
+	length := float32(c.LenPerChannel()) / float32(c.SampleRate) * 1000
+	return int64(length)
 }
 
 // Append's another Clip's audio data to this Clip, increasing the length.

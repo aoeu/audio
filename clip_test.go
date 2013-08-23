@@ -71,6 +71,18 @@ func TestIsEqual(t *testing.T) {
 	}
 }
 
+func TestLenMilliseconds(t *testing.T) {
+	bass, err := NewClipFromWave("samples/testing/bass_drum.wav")
+	if err != nil {
+		t.Error(err)
+	}
+	actual := bass.LenMilliseconds()
+	expected := int64(482)
+	if actual != expected {
+		t.Errorf("Expected length of %d instead of %d\n", expected, actual)
+	}
+}
+
 func TestAppend(t *testing.T) {
 	bass, err := NewClipFromWave("samples/testing/bass_drum.wav")
 	if err != nil {

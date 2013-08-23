@@ -1,0 +1,34 @@
+[
+	{
+		"NoteNum" : 0,
+		"FileName" : "samples/effects/air_horn.wav"
+	},
+	{
+		"NoteNum"  : 1, 
+		"FileName" : "samples/drum_sounds/shaker.wav"
+	},
+	{
+		"NoteNum"  : 2, 
+		"FileName" : "samples/drum_sounds/shaker_short.wav"
+	},
+	{
+		"NoteNum"  : 3,  
+		"FileName" : "samples/drum_sounds/ride_cymbal.wav"
+	},
+	{
+		"NoteNum"  : 4, 
+		"FileName" : "samples/drum_sounds/high_hat.wav"
+	},
+	{
+		"NoteNum"  : 5, 
+		"FileName" : "samples/drum_sounds/clap.wav"
+	},
+	{
+		"NoteNum"  : 6, 
+		"FileName" : "samples/drum_sounds/snare_drum.wav"
+	},
+	{
+		"NoteNum"  : 7, 
+		"FileName" : "samples/drum_sounds/bass_drum.wav"
+	}
+]
