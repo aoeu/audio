@@ -12,6 +12,7 @@ const (
 	MinInt16 = -MaxInt16 - 1
 )
 
+// Represents a (possibly) multi-channel audio clip.
 type Clip struct {
 	// Hardcoding for 16-bit.
 	Samples    [][]int16 // Channels of Samples, non interlaced.
@@ -19,6 +20,7 @@ type Clip struct {
 	SampleRate int
 }
 
+// Creates a new empty clip with initialized data structures to append to.
 func NewClip(numChannels int) *Clip {
 	c := new(Clip)
 	c.Samples = make([][]int16, numChannels)
@@ -28,6 +30,7 @@ func NewClip(numChannels int) *Clip {
 	return c
 }
 
+// Creates a new clip from a wave file name.
 func NewClipFromWave(waveFileName string) (*Clip, error) {
 	c := new(Clip)
 	w, err := wave.OpenFile(waveFileName)
@@ -45,6 +48,7 @@ func NewClipFromWave(waveFileName string) (*Clip, error) {
 	return c, nil
 }
 
+// Creates a new wave file from a clip.
 func NewWaveFromClip(c *Clip) (w *wave.File) {
 	fileName := c.Name
 	if !strings.Contains(fileName, ".wav") {
@@ -90,10 +94,12 @@ func (s *Clip) IsEqual(t *Clip) (bool, error) {
 	return true, nil
 }
 
+// Returns the total number of samples within any clip channel.
 func (c *Clip) LenPerChannel() int {
 	return len(c.Samples[0])
 }
 
+// Returns the real-time playback length of the audio, in milliseconds.
 func (c *Clip) LenMilliseconds() int64 {
 	length := float32(c.LenPerChannel()) / float32(c.SampleRate) * 1000
 	return int64(length)
@@ -110,6 +116,7 @@ func (target *Clip) Append(source *Clip) error {
 	return nil
 }
 
+// Mixes two disparate channels of audio data together.
 func mix(s []int16, t []int16) {
 	if len(t) > len(s) {
 		diffLen := len(t) - len(s)
@@ -128,6 +135,7 @@ func mix(s []int16, t []int16) {
 	}
 }
 
+// Mixes the audio data of a clip into this clip, increasing length as necessary.
 func (s *Clip) Mix(t *Clip) error {
 	if len(s.Samples) != len(t.Samples) {
 		return errors.New("Clips have varying number of channels.")
@@ -138,6 +146,7 @@ func (s *Clip) Mix(t *Clip) error {
 	return nil
 }
 
+// Returns a new audio clip consisting of a subsection (slice) of sample data.
 func (s *Clip) Slice(startIndex, endIndex int) (*Clip, error) {
 	t := NewClip(len(s.Samples))
 	if endIndex > len(s.Samples[0]) {
@@ -149,6 +158,7 @@ func (s *Clip) Slice(startIndex, endIndex int) (*Clip, error) {
 	return t, nil
 }
 
+// Splits a clip into an equal-length number of specified new clips.
 func (c *Clip) Split(numDivisions int) ([]*Clip, error) {
 	stepLen := len(c.Samples[0]) / numDivisions
 	subSamples := make([]*Clip, numDivisions)
@@ -164,6 +174,7 @@ func (c *Clip) Split(numDivisions int) ([]*Clip, error) {
 	return subSamples, nil
 }
 
+// Doubles the playback time of a clip, decreasing pitch.
 func (c *Clip) Stretch() {
 	sampleLen := len(c.Samples[0])
 	for chanNum := 0; chanNum < len(c.Samples); chanNum++ {
@@ -175,6 +186,7 @@ func (c *Clip) Stretch() {
 	}
 }
 
+// Reverses the audio-data of an audio-clip.
 func (c *Clip) Reverse() {
 	for chanNum := 0; chanNum < len(c.Samples); chanNum++ {
 		for i, j := 0, len(c.Samples[chanNum])-1; i < j; i, j = i+1, j-1 {
