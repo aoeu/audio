@@ -35,10 +35,12 @@ type Buffer struct {
 	NumChannels int
 }
 
+// Creates a new, (intended to be audio-interlaced) ring buffer. 
 func NewBuffer(length int, numChannels int) Buffer {
 	return Buffer{make([]int16, length*numChannels), length, 0, numChannels}
 }
 
+// Steps to the next index of the ring buffer, wrapping if necessary.
 func (b *Buffer) Next() {
 	b.Index++
 	if b.Index == b.Len {
@@ -57,12 +59,14 @@ func (b *Buffer) IncreaseLen(length int) {
 	b.Len = len(b.Data)
 }
 
+// A simple software sampler.
 type Sampler struct {
 	clips  map[int]*Clip
 	stream *Stream
 	buffer Buffer
 }
 
+// Creates a new software sampler.
 func NewSampler(numChannels int) (*Sampler, error) {
 	s := new(Sampler)
 	s.clips = make(map[int]*Clip)
@@ -70,6 +74,8 @@ func NewSampler(numChannels int) (*Sampler, error) {
 	return s, nil
 }
 
+// Creates a new software sampler 
+// loaded with audio files specified in a JSON configuration file.
 func NewLoadedSampler(configFileName string) (*Sampler, error) {
 	numChannels := 2
 	s, err := NewSampler(numChannels)
@@ -90,11 +96,13 @@ func NewLoadedSampler(configFileName string) (*Sampler, error) {
 	return s, err
 }
 
+// Adds a new audio-clip to be played back by the sampler.
 func (s *Sampler) AddClip(c *Clip, noteNum int) {
 	s.clips[noteNum] = c
 	s.buffer.IncreaseLen(c.LenPerChannel())
 }
 
+// Runs the sampler, commencing output to an audio device.
 func (s *Sampler) Run() error {
 	var err error
 	s.stream, err = OpenDefaultStream(0, 2, 44100, 0, s)
@@ -104,15 +112,17 @@ func (s *Sampler) Run() error {
 	return s.stream.Start()
 }
 
+// Stops (pauses) an audio sampler.
 func (s *Sampler) Stop() error {
 	return s.stream.Stop()
 }
 
-// Close will terminate the Sampler's audio stream.
+// Closes the sampler's audio stream.
 func (s *Sampler) Close() error {
 	return s.stream.Close()
 }
 
+// Plays the specified sample at a specified volume.
 func (s *Sampler) Play(noteNum int, volume float32) {
 	clip, ok := s.clips[noteNum]
 	if !ok {
@@ -131,6 +141,9 @@ func (s *Sampler) Play(noteNum int, volume float32) {
 	}
 }
 
+// Audio processing function needed by the audio device.
+// This method should be private, but needs to be exported for use by 
+// the underlying audio device.
 func (s *Sampler) ProcessAudio(_, out []int16) {
 	// Read from the input buffer pointer or write to the output buffer pointer.
 	// if interlaced do stuff if not interlaced do other stuff.
