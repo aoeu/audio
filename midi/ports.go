@@ -15,7 +15,6 @@ import "C"
 import (
 	"errors"
 	"fmt"
-	//"github.com/davecgh/go-spew/spew"
 	"time"
 	"unsafe"
 )
@@ -289,8 +288,8 @@ func (s *SystemPort) writeEvent(event Event) error {
 
 // This is not the method you're looking for. Avoid it.
 // It bypasses MIDI-message-type-specific channels in order to
-// broadcast to many disparate types of messages to hardware where the order of
-// message arrival matters. It exists to handle an edge case on one
+// broadcast many disparate types of messages to hardware where the order of
+// message arrival matters greatly. It exists to handle an edge case on one
 // piece of hardware and its peculiar internal protocols.
 func (s *SystemPort) WriteRawEvent(e Event) error {
 	if !s.IsInputPort {
