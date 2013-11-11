@@ -1,0 +1,30 @@
+[
+	{
+		"NoteNum"  : 36,
+		"FileName" : "samples/drum_sounds/bass_drum.wav"
+	},
+	{
+		"NoteNum"  : 38,
+		"FileName" : "samples/drum_sounds/snare_drum2.wav"
+	},
+	{
+		"NoteNum"  : 39,
+		"FileName" : "samples/drum_sounds/ride_cymbal.wav"
+	},
+	{
+		"NoteNum"  : 49,
+		"FileName" : "samples/drum_sounds/shaker.wav"
+	},
+	{
+		"NoteNum"  : 51,
+		"FileName" : "samples/drum_sounds/shaker_short.wav"
+	},
+	{
+		"NoteNum"  : 48,
+		"FileName" : "samples/drum_sounds/high_hat.wav"
+	},
+	{
+		"NoteNum"  : 45,
+		"FileName" : "samples/drum_sounds/clap.wav"
+	}
+]
