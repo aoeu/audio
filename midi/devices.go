@@ -17,6 +17,7 @@ On Device implementations:
 import "C"
 import "fmt"
 
+// Generic device for any software or hardware capable of sending and receiving MIDI.
 type Device interface {
 	Open() error
 	Close() error
@@ -25,29 +26,33 @@ type Device interface {
 	OutPort() Port // Stuff coming from the device is sent from the OutPort.
 }
 
-// Implements Device
+// Implements Device, used to route MIDI data.
 type ThruDevice struct {
 	inPort  *FakePort
 	outPort *FakePort
 	stop    chan bool
 }
 
+// Creates a new thru device.
 func NewThruDevice() *ThruDevice {
 	return &ThruDevice{&FakePort{}, &FakePort{}, make(chan bool, 1)}
 }
 
+// Opens a thru device for MIDI streaming.
 func (t *ThruDevice) Open() error {
 	t.inPort.Open()
 	t.outPort.Open()
 	return nil
 }
 
+// Closes a thru device from MIDI streaming.
 func (t ThruDevice) Close() (err error) {
 	t.inPort.Close()
 	t.outPort.Close()
 	return nil
 }
 
+// Routes data through the thru device.
 func (t ThruDevice) Run() {
 	for {
 		select {
@@ -63,20 +68,24 @@ func (t ThruDevice) Run() {
 	}
 }
 
+// Method to access the MIDI input port.
 func (t ThruDevice) InPort() Port {
 	return t.inPort
 }
 
+// Method to access the MIDI output port.
 func (t ThruDevice) OutPort() Port {
 	return t.outPort
 }
 
+// Represents a software or hardware MIDI device on the system.
 type SystemDevice struct { // Implements Device
 	inPort  *SystemPort
 	outPort *SystemPort
 	Name    string
 }
 
+// Opens the device for streaming MIDI data.
 func (s SystemDevice) Open() error {
 	if debug {
 		fmt.Println("SystemDevice", s.Name, "Open()")
@@ -89,6 +98,8 @@ func (s SystemDevice) Open() error {
 	return err
 }
 
+
+// Closes 
 func (s SystemDevice) Close() error {
 	if debug {
 		fmt.Println("SystemDevice", s.Name, "Close()")
