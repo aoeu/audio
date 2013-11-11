@@ -27,7 +27,7 @@ func main() {
 	launchpad.Open()
 	go launchpad.Run()
 
-	sampler, err := audio.NewLoadedSampler("config/launchpad_seq_config.json")
+	sampler, err := audio.NewLoadedSampler("config/launchpad_sequencer.json")
 	sampler.Run()
 	time.Sleep(1 * time.Second)
 	activeButtons := make(map[int]bool)
