@@ -1,6 +1,7 @@
 package audio
 
 import (
+	"code.google.com/p/portaudio-go/portaudio"
 	"encoding/json"
 	"io/ioutil"
 )
@@ -28,7 +29,7 @@ func loadConfig(configFileName string) (Configuration, error) {
 }
 
 // Represents a ring buffer for interlaced audio data.
-type Buffer struct {
+type RingBuffer struct {
 	Data        []int16
 	Len         int
 	Index       int
@@ -36,12 +37,12 @@ type Buffer struct {
 }
 
 // Creates a new, (intended to be audio-interlaced) ring buffer.
-func NewBuffer(length int, numChannels int) Buffer {
-	return Buffer{make([]int16, length*numChannels), length, 0, numChannels}
+func NewRingBuffer(length int, numChannels int) RingBuffer {
+	return RingBuffer{make([]int16, length*numChannels), length, 0, numChannels}
 }
 
 // Steps to the next index of the ring buffer, wrapping if necessary.
-func (b *Buffer) Next() {
+func (b *RingBuffer) Next() {
 	b.Index++
 	if b.Index == b.Len {
 		b.Index = 0
@@ -49,7 +50,7 @@ func (b *Buffer) Next() {
 }
 
 // Clobbers data while increasing the buffer capacity.
-func (b *Buffer) IncreaseLen(length int) {
+func (b *RingBuffer) IncreaseLen(length int) {
 	switch {
 	case len(b.Data) == 0:
 		b.Data = make([]int16, length*b.NumChannels)
@@ -62,15 +63,15 @@ func (b *Buffer) IncreaseLen(length int) {
 // A simple software sampler.
 type Sampler struct {
 	clips  map[int]*Clip
-	stream *Stream
-	buffer Buffer
+	stream *portaudio.Stream
+	buffer RingBuffer
 }
 
 // Creates a new software sampler.
 func NewSampler(numChannels int) (*Sampler, error) {
 	s := new(Sampler)
 	s.clips = make(map[int]*Clip)
-	s.buffer = NewBuffer(0, numChannels)
+	s.buffer = NewRingBuffer(0, numChannels)
 	return s, nil
 }
 
@@ -104,8 +105,9 @@ func (s *Sampler) AddClip(c *Clip, noteNum int) {
 
 // Runs the sampler, commencing output to an audio device.
 func (s *Sampler) Run() error {
+	portaudio.Initialize()
 	var err error
-	s.stream, err = OpenDefaultStream(0, 2, 44100, 0, s)
+	s.stream, err = portaudio.OpenDefaultStream(0, 2, 44100, 0, s.processAudio)
 	if err != nil {
 		return err
 	}
@@ -144,7 +146,7 @@ func (s *Sampler) Play(noteNum int, volume float32) {
 // Audio processing function needed by the audio device.
 // This method should be private, but needs to be exported for use by
 // the underlying audio device.
-func (s *Sampler) ProcessAudio(_, out []int16) {
+func (s *Sampler) processAudio(_, out []int16) {
 	// Read from the input buffer pointer or write to the output buffer pointer.
 	// if interlaced do stuff if not interlaced do other stuff.
 	for i := range out { // Iterate over the empty slice, populate with values.
