@@ -53,7 +53,9 @@ func OpenDefaultStream(numInputChannels, numOutputChannels int,
 	if err != nil {
 		return nil, err
 	}
-	paErr = C.Pa_OpenDefaultStream(&s.paStream, C.int(numInputChannels), C.int(numOutputChannels), fmt, C.double(sampleRate), C.ulong(framesPerBuffer), C.getPaStreamCallback(), unsafe.Pointer(s))
+	paErr = C.Pa_OpenDefaultStream(&s.paStream, C.int(numInputChannels),
+		C.int(numOutputChannels), fmt, C.double(sampleRate),
+		C.ulong(framesPerBuffer), C.getPaStreamCallback(), unsafe.Pointer(s))
 	if paErr != C.paNoError {
 		return nil, newError(paErr)
 	}

@@ -35,7 +35,7 @@ type Buffer struct {
 	NumChannels int
 }
 
-// Creates a new, (intended to be audio-interlaced) ring buffer. 
+// Creates a new, (intended to be audio-interlaced) ring buffer.
 func NewBuffer(length int, numChannels int) Buffer {
 	return Buffer{make([]int16, length*numChannels), length, 0, numChannels}
 }
@@ -74,7 +74,7 @@ func NewSampler(numChannels int) (*Sampler, error) {
 	return s, nil
 }
 
-// Creates a new software sampler 
+// Creates a new software sampler
 // loaded with audio files specified in a JSON configuration file.
 func NewLoadedSampler(configFileName string) (*Sampler, error) {
 	numChannels := 2
@@ -142,7 +142,7 @@ func (s *Sampler) Play(noteNum int, volume float32) {
 }
 
 // Audio processing function needed by the audio device.
-// This method should be private, but needs to be exported for use by 
+// This method should be private, but needs to be exported for use by
 // the underlying audio device.
 func (s *Sampler) ProcessAudio(_, out []int16) {
 	// Read from the input buffer pointer or write to the output buffer pointer.
