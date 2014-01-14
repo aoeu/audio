@@ -91,7 +91,7 @@ func (w *File) LenMilliseconds() int64 {
 	return (length / int64(w.Header.SampleRate)) * 1000
 }
 
-// Creates new, empty wave file structure. 
+// Creates new, empty wave file structure.
 func NewFile(fileName string) *File {
 	header := NewHeader()
 	w := File{FileName: fileName,
@@ -125,10 +125,10 @@ func (w *File) NextSample() int16 {
 // Read reads a wave file in entirety into the structure.
 func (w *File) Read() (err error) {
 	f, err := os.Open((*w).FileName)
-	defer f.Close()
 	if err != nil {
 		return
 	}
+	defer f.Close()
 	var header Header
 	var extChunkSize int16
 	var extChunk ExtensionChunk
