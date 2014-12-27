@@ -13,11 +13,11 @@ func check(err error) {
 	}
 }
 
-func sleep(msLen int64, resume chan bool) {
+func sleep(msLen time.Duration, resume chan bool) {
 	if len(resume) > 0 {
-		<-resume // Clear (e.g. reset) resume buffer so we can use it.
+		<-resume // Clear (e.g. reset) resume buffer it can be used.
 	}
-	time.Sleep(time.Duration(msLen) * time.Millisecond)
+	time.Sleep(msLen)
 	resume <- true
 }
 

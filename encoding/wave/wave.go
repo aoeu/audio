@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"os"
+	"time"
 	"unsafe"
 )
 
@@ -86,9 +87,9 @@ type File struct {
 }
 
 // Returns the length of playback time of the samples in milliseconds.
-func (w *File) LenMilliseconds() int64 {
+func (w *File) LenMilliseconds() time.Duration {
 	length := int64(len(w.Samples)) / int64(w.Header.NumChannels)
-	return (length / int64(w.Header.SampleRate)) * 1000
+	return time.Duration((length / int64(w.Header.SampleRate)) * 1000) * time.Millisecond
 }
 
 // Creates new, empty wave file structure.

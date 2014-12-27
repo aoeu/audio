@@ -26,6 +26,6 @@ func main() {
 	s.Run()
 	log.Println("Playing audio file " + filePath)
 	s.Play(64, volume)
-	<-time.After(5 * time.Second)
+	<-time.After(clip.LenMilliseconds())
 	log.Println("Done playing audio file.")
 }

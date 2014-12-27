@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 )
 
 const (
@@ -100,9 +101,9 @@ func (c *Clip) LenPerChannel() int {
 }
 
 // Returns the real-time playback length of the audio, in milliseconds.
-func (c *Clip) LenMilliseconds() int64 {
+func (c *Clip) LenMilliseconds() time.Duration {
 	length := float32(c.LenPerChannel()) / float32(c.SampleRate) * 1000
-	return int64(length)
+	return time.Duration(length) * time.Millisecond
 }
 
 // Append's another Clip's audio data to this Clip, increasing the length.
