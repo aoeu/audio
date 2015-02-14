@@ -15,25 +15,12 @@ var configPath string = "instruments/config/nanopad_sampler.json"
 var volume float32 = 0.5
 
 func main() {
-	devices, err := midi.GetDevices()
-	check(err)
-	nanopad := devices["nanoPAD PAD"]
-	nanopad.Open()
-	go nanopad.Run()
-	sampler, err := audio.NewLoadedSampler(configPath)
-	sampler.Run()
-	check(err)
+	nanopad, _ := midi.GetDevice("nanoPAD PAD")
+	sampler, _ := audio.NewLoadedSampler(configPath)
 	for {
-		select {
-		case note := <-nanopad.OutPort().NoteOns():
-			go sampler.Play(note.Key, volume)
-		case <-nanopad.OutPort().NoteOffs():
-			continue
-		case <-nanopad.OutPort().ControlChanges():
-			continue
+		msg := <-nanopad.OutPort()
+		if msg.(type) == midi.NoteOn {
+			go sampler.Play(msg.Key, volume)
 		}
 	}
-	nanopad.Close()
-	sampler.Stop()
-	sampler.Close()
 }
