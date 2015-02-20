@@ -1,11 +1,8 @@
 package midi
 
 /*
-A Port has go channels for reading / writing MIDI data
-and may read / write from underlying system MIDI streams via C.
-There are input ports (for output streams) and output ports
-(for input streams). A Port is to represent the physical
-MIDI in and MIDI out ports of devices, not the file streams
+A Port intends to represent the physical
+MIDI input and MIDI output ports of devices, not the file streams
 that the OS uses to transfer data to them.
 */
 

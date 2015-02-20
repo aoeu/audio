@@ -98,8 +98,7 @@ func (s SystemDevice) Open() error {
 	return err
 }
 
-
-// Closes 
+// Closes
 func (s SystemDevice) Close() error {
 	if debug {
 		fmt.Println("SystemDevice", s.Name, "Close()")
@@ -164,6 +163,8 @@ func getSystemDevices() (inputs, outputs []SystemDevice) {
 	return inputs, outputs
 }
 
+// ??? Does encapsulation really matter? Who cares?
+// !!! Some one could bypass any of this with C, anyway.
 type SystemDevices map[string]SystemDevice
 
 // This function will cause terrible errors if called. Do not use it.
@@ -178,9 +179,12 @@ func (s *SystemDevices) Shutdown() error {
 	return makePortMidiError(errNum)
 }
 
+// ??? Is the type aliasing worth it?
+var devices SystemDevices
+
 func GetDevices() (SystemDevices, error) {
 	inputs, outputs := getSystemDevices()
-	devices := make(map[string]SystemDevice, len(inputs)+len(outputs))
+	devices = make(map[string]SystemDevice, len(inputs)+len(outputs))
 
 	// Pair devices that have both an input and an output, add all to system.
 	for _, inDev := range inputs {
@@ -193,6 +197,8 @@ func GetDevices() (SystemDevices, error) {
 		}
 		devices[inDev.Name] = inDev
 	}
+	// TODO: The logic to connect inputs and outputs is dumb. Make it smarter.
+	// There's likely some magic ints or serial numbers under the hood. Find them.
 	for _, outDev := range outputs {
 		if _, ok := devices[outDev.Name]; !ok {
 			devices[outDev.Name] = outDev
@@ -200,6 +206,21 @@ func GetDevices() (SystemDevices, error) {
 	}
 	errNum := C.Pm_Initialize()
 	return devices, makePortMidiError(errNum)
+}
+
+func GetDevice(deviceName string) (device SystemDevice, err error) {
+	if devices == nil { // ??? nil or length of 0 ?
+		devices, err := GetDevices()
+		if err != nil {
+			return SystemDevice{}, fmt.Sprintf("Could not initialize devices, got error: %v", err)
+		}
+	}
+	device, ok := devices[deviceName]
+	if !ok {
+		errorMessage := fmt.Sprintf("Device '%s' was not found on the system.", deviceName)
+		return SystemDevice{}, errors.New(errorMessage)
+	}
+	return device, nil
 }
 
 // Implements Device
