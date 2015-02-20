@@ -11,17 +11,35 @@ const (
 	CONTROL_CHANGE int = 176
 )
 
-type Event struct {
+type Message interface {
+	ToRawMessage() RawMessage
+}
+
+// TODO: Raw might not be the best name here.
+type RawMessage struct {
 	Channel int
 	Command int
 	Data1   int
 	Data2   int
 }
 
-type Note struct {
+type NoteOn struct {
 	Channel  int
 	Key      int
 	Velocity int
+}
+
+func (n *NoteOn) ToRawMessage() {
+	return RawMessage{n.Channel, NOTE_ON, n.Key, n.Velocity}
+}
+
+type NoteOff struct {
+	Channel int
+	Key	int
+}
+
+func (n *NoteOff) ToRawMessage() {
+	return RawMessage{n.Channel, NOTE_OFF, n.Key, 0}
 }
 
 type ControlChange struct {
@@ -29,6 +47,10 @@ type ControlChange struct {
 	ID      int // a.k.a. Control Change "number"
 	Value   int
 	Name    string // What the ID is used for as per the General MIDI spec.
+}
+
+func (c *ControlChange) ToRawMessage() RawMessage {
+	return RawMessage{c.Channel, CONTROL_CHANGE, c.ID, c.Value}
 }
 
 // General MIDI names for various ControlChange IDs.

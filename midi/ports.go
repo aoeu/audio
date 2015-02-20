@@ -21,6 +21,7 @@ type Port interface {
 	Close() error
 	IsOpen() bool
 	Run()
+	Messages() chan Message
 	NoteOns() chan Note
 	NoteOffs() chan Note
 	ControlChanges() chan ControlChange
@@ -37,6 +38,7 @@ func makePortMidiError(errNum C.PmError) error {
 // Implements Port, prentinding to be a system port for transposed values.
 type FakePort struct {
 	isOpen         bool
+	messages chan interface{}
 	noteOns        chan Note
 	noteOffs       chan Note
 	controlChanges chan ControlChange
@@ -45,6 +47,7 @@ type FakePort struct {
 
 func (t *FakePort) Open() error {
 	t.isOpen = true
+	t.messages = make(chan interface{}, BufferSize)
 	t.noteOns = make(chan Note, BufferSize)
 	t.noteOffs = make(chan Note, BufferSize)
 	t.controlChanges = make(chan ControlChange, BufferSize)
@@ -52,6 +55,7 @@ func (t *FakePort) Open() error {
 }
 
 func (t *FakePort) Close() error {
+	clone(t.messages)
 	close(t.noteOns)
 	close(t.noteOffs)
 	close(t.controlChanges)
@@ -156,15 +160,8 @@ func (s SystemPort) RunInPort() {
 	// A device's input port receives data - write to the port.
 	for {
 		select {
-		case noteOn := <-s.NoteOns():
-			s.writeEvent(Event{noteOn.Channel, NOTE_ON,
-				noteOn.Key, noteOn.Velocity})
-		case noteOff := <-s.NoteOffs():
-			s.writeEvent(Event{noteOff.Channel, NOTE_OFF,
-				noteOff.Key, noteOff.Velocity})
-		case cc := <-s.ControlChanges():
-			s.writeEvent(Event{cc.Channel, CONTROL_CHANGE,
-				cc.ID, cc.Value})
+		case msg := <-s.Messages():
+			s.writeMessage(msg) 
 		case <-s.stop:
 			return
 		}
@@ -269,13 +266,14 @@ func (s SystemPort) readEvent() (event Event, err error) {
 	return Event{}, nil // Nothing to read.
 }
 
-func (s *SystemPort) writeEvent(event Event) error {
-	status := event.Command + event.Channel
+func (s *SystemPort) writeMessage(msg Message) error {
+	rawMsg := msg.ToRawMessage()
+	status := rawMsg.Command + rawMsg.Channel
 	message := ((uint32(event.Data2) << 16) & 0xFF0000) |
 		((uint32(event.Data1) << 8) & 0x00FF00) |
 		(uint32(status) & 0x0000FF)
 	if debug {
-		//spew.Dump(event, message)
+		//spew.Dump(rawMsg, message)
 		fmt.Printf("%b\n", message)
 	}
 	buffer := C.PmEvent{C.PmMessage(message), 0}
@@ -288,9 +286,9 @@ func (s *SystemPort) writeEvent(event Event) error {
 // broadcast many disparate types of messages to hardware where the order of
 // message arrival matters greatly. It exists to handle an edge case on one
 // piece of hardware and its peculiar internal protocols.
-func (s *SystemPort) WriteRawEvent(e Event) error {
+func (s *SystemPort) WriteRawEvent(msg Message) error {
 	if !s.IsInputPort {
 		return nil
 	}
-	return s.writeEvent(e)
+	return s.writeMessage(msg)
 }
