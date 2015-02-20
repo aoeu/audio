@@ -22,9 +22,6 @@ type Port interface {
 	IsOpen() bool
 	Run()
 	Messages() chan Message
-	NoteOns() chan Note
-	NoteOffs() chan Note
-	ControlChanges() chan ControlChange
 }
 
 func makePortMidiError(errNum C.PmError) error {
@@ -38,27 +35,18 @@ func makePortMidiError(errNum C.PmError) error {
 // Implements Port, prentinding to be a system port for transposed values.
 type FakePort struct {
 	isOpen         bool
-	messages chan interface{}
-	noteOns        chan Note
-	noteOffs       chan Note
-	controlChanges chan ControlChange
-	IsInputPort    bool
+	messages       chan Message
+	IsInputPort    bool // TODO: Why isn't this on the Port interface instead?
 }
 
 func (t *FakePort) Open() error {
 	t.isOpen = true
-	t.messages = make(chan interface{}, BufferSize)
-	t.noteOns = make(chan Note, BufferSize)
-	t.noteOffs = make(chan Note, BufferSize)
-	t.controlChanges = make(chan ControlChange, BufferSize)
+	t.messages = make(chan Message, BufferSize)
 	return nil
 }
 
 func (t *FakePort) Close() error {
 	clone(t.messages)
-	close(t.noteOns)
-	close(t.noteOffs)
-	close(t.controlChanges)
 	t.isOpen = false
 	return nil
 }
@@ -71,27 +59,12 @@ func (t FakePort) Run() {
 	// Do nothing, Run is handled by the Transposer.
 }
 
-func (t FakePort) NoteOns() chan Note {
-	return t.noteOns
-}
-
-func (t FakePort) NoteOffs() chan Note {
-	return t.noteOffs
-}
-
-func (t FakePort) ControlChanges() chan ControlChange {
-	return t.controlChanges
-}
-
 // Implements Port, abstracting a system MIDI stream as a port.
 type SystemPort struct {
 	isOpen         bool
 	IsInputPort    bool
 	id             int
 	stream         unsafe.Pointer
-	noteOns        chan Note
-	noteOffs       chan Note
-	controlChanges chan ControlChange
 	stop           chan bool
 }
 
@@ -116,9 +89,6 @@ func (s *SystemPort) Open() error {
 	if errNum == 0 {
 		s.isOpen = true
 		s.stop = make(chan bool, 1)
-		s.noteOns = make(chan Note, BufferSize)
-		s.noteOffs = make(chan Note, BufferSize)
-		s.controlChanges = make(chan ControlChange, BufferSize)
 	}
 	return makePortMidiError(errNum)
 }
@@ -128,9 +98,6 @@ func (s *SystemPort) Close() error {
 		s.isOpen = false
 		s.stop <- true
 		errNum := C.Pm_Close(s.stream)
-		close(s.noteOns)
-		close(s.noteOffs)
-		close(s.controlChanges)
 		return makePortMidiError(errNum)
 	}
 	return nil
@@ -180,7 +147,7 @@ func (s SystemPort) RunOutPort() {
 		default:
 			dataAvailable, err := s.poll()
 			if err != nil {
-				panic(err)
+				panic(err) // TODO: Is there a matching recover?
 			}
 			if dataAvailable == false {
 				time.Sleep(1 * time.Millisecond)
@@ -196,34 +163,30 @@ func (s SystemPort) RunOutPort() {
 			switch e.Command {
 			case NOTE_ON:
 				if e.Data2 == 0 {
-					// Note On with velocity 0 is a Note Off.
-					s.NoteOffs() <- Note{e.Channel, e.Data1, e.Data2}
+					// Note On with velocity 0 is sent instead of Note Off by some hardware.
+					s.Messages() <- NoteOff{e.Channel, e.Data1}
 				} else {
-					s.NoteOns() <- Note{e.Channel, e.Data1, e.Data2}
+					s.Messages() <- NoteOn{e.Channel, e.Data1, e.Data2}
 				}
 			case NOTE_OFF:
-				s.NoteOffs() <- Note{e.Channel, e.Data1, e.Data2}
+				s.Messages() <- NoteOff{e.Channel, e.Data1}
 			case CONTROL_CHANGE:
 				name, ok := ControlChangeNames[e.Data1]
 				if !ok {
 					name = "Unknown"
 				}
-				s.ControlChanges() <- ControlChange{e.Channel, e.Data1, e.Data2, name}
+				s.Messages() <- ControlChange{e.Channel, e.Data1, e.Data2, name}
 			}
 		}
 	}
 }
 
-func (s SystemPort) NoteOns() chan Note {
-	return s.noteOns
+func (s SystemPort) MIDIOutPort() <-chan Messages {
+	return s.messages	
 }
 
-func (s SystemPort) NoteOffs() chan Note {
-	return s.noteOffs
-}
-
-func (s SystemPort) ControlChanges() chan ControlChange {
-	return s.controlChanges
+func (s SystemPort) MIDIInPort() chan<- Messages {
+	return s.messages
 }
 
 func (s SystemPort) poll() (bool, error) {

@@ -35,10 +35,9 @@ func main() {
 	sampler, err := audio.NewLoadedSampler(configPath)
 	check(err)
 	for {
-		msg := <-nanopad.OutPort()
+		msg := <-nanopad.MIDIOutPort
 		if msg.(type) == midi.NoteOn {
-			noteNumber := msg.Value
-			go sampler.Play(noteNumber, volume)
+			go sampler.Play(msg.(NoteOn).Key, volume)
 		}
 	}
 }

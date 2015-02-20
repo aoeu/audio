@@ -22,8 +22,8 @@ type Device interface {
 	Open() error
 	Close() error
 	Run()
-	InPort() Port  // Stuff going into the device is received on the InPort.
-	OutPort() Port // Stuff coming from the device is sent from the OutPort.
+	MIDIInPort() Port  // Stuff going into the device is received on the InPort.
+	MIDIOutPort() Port // Stuff coming from the device is sent from the OutPort.
 }
 
 // Implements Device, used to route MIDI data.
@@ -56,12 +56,8 @@ func (t ThruDevice) Close() (err error) {
 func (t ThruDevice) Run() {
 	for {
 		select {
-		case noteOn := <-t.inPort.NoteOns():
-			t.outPort.NoteOns() <- noteOn
-		case noteOff := <-t.inPort.NoteOffs():
-			t.outPort.NoteOffs() <- noteOff
-		case cc := <-t.outPort.ControlChanges():
-			t.outPort.ControlChanges() <- cc
+		case msg := <-t.inPort.Messages():
+			t.outPort.Messages() <- msg 
 		case <-t.stop:
 			return
 		}
@@ -149,7 +145,6 @@ func getSystemDevices() (inputs, outputs []SystemDevice) {
 		}
 		port := &SystemPort{isOpen: isOpen, id: i, IsInputPort: isInputPort}
 		device := SystemDevice{Name: name}
-
 		if isInputPort {
 			device.inPort = port
 			device.outPort = &SystemPort{isOpen: false, id: -1}
@@ -258,21 +253,24 @@ func (t *Transposer) Open() error {
 		t.Transpose = func(t1 Transposer) {
 			for {
 				select {
-				case noteOn := <-t.InPort().NoteOns():
-					key, ok := t.NoteMap[noteOn.Key]
-					if ok {
-						noteOn.Key = key
+				case msg := t.InPort().Messages():
+					switch msg.(type) {
+					case NoteOn: // TODO: Can NoteOffs be combined with this?
+						key, ok := t.NoteMap[msg.Key]
+						if ok {
+							msg.Key = key
+						}
+						t.OutPort().Messages() <- msg
+					case NoteOff:
+						key, ok := t.NoteMap[msg.Key]
+						if ok {
+							msg.Key = key
+						}
+						t.OutPort().Messages() <- msg
+					default:
+						t.OutPort().Messages() <- msg
 					}
-					t.OutPort().NoteOns() <- noteOn
-				case noteOff := <-t.InPort().NoteOffs():
-					key, ok := t.NoteMap[noteOff.Key]
-					if ok {
-						noteOff.Key = key
-					}
-					t.OutPort().NoteOffs() <- noteOff
-				case cc := <-t.InPort().ControlChanges():
-					t.OutPort().ControlChanges() <- cc
-				}
+				}	
 			}
 		}
 	}
