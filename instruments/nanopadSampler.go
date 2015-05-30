@@ -3,6 +3,7 @@ package main
 import (
 	"audio"
 	"audio/midi"
+	"flag"
 )
 
 func check(err error) {
@@ -11,13 +12,18 @@ func check(err error) {
 	}
 }
 
-var configPath string = "instruments/config/nanopad_sampler.json"
+var configPath string 
+var deviceName string
 var volume float32 = 0.5
 
 func main() {
+	flag.StringVar(&configPath, "config", "sine.json", "A config file mapping MIDI keys to sound file paths.")
+	flag.StringVar(&deviceName, "device", "nanoPAD MIDI 1", "The name of the MIDI controller to use.")
+	flag.Parse()
 	devices, err := midi.GetDevices()
 	check(err)
-	nanopad := devices["nanoPAD PAD"]
+	nanopad := devices[deviceName]
+	
 	nanopad.Open()
 	go nanopad.Run()
 	sampler, err := audio.NewLoadedSampler(configPath)
