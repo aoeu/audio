@@ -56,12 +56,7 @@ func (t ThruDevice) Close() (err error) {
 func (t ThruDevice) Run() {
 	for {
 		select {
-		case noteOn := <-t.inPort.NoteOns():
-			t.outPort.NoteOns() <- noteOn
-		case noteOff := <-t.inPort.NoteOffs():
-			t.outPort.NoteOffs() <- noteOff
-		case cc := <-t.outPort.ControlChanges():
-			t.outPort.ControlChanges() <- cc
+		case t.outPort.Events() <- <-t.inPort.Events():
 		case <-t.stop:
 			return
 		}
@@ -98,8 +93,7 @@ func (s SystemDevice) Open() error {
 	return err
 }
 
-
-// Closes 
+// Closes
 func (s SystemDevice) Close() error {
 	if debug {
 		fmt.Println("SystemDevice", s.Name, "Close()")
@@ -217,6 +211,22 @@ func NewTransposer(noteMap map[int]int, trans Transposition) (t *Transposer) {
 	t = &Transposer{NoteMap: noteMap}
 	t.inPort = &FakePort{}
 	t.outPort = &FakePort{}
+	if trans == nil {
+		trans = func(t1 Transposer) {
+			for {
+				switch e := <-t.InPort().Events(); e.(type) {
+				case Note:
+					n := e.(Note)
+					if key, ok := t.NoteMap[n.Key]; ok {
+						n.Key = key
+					}
+					t.OutPort().Events() <- n
+				default:
+					t.OutPort().Events() <- e
+				}
+			}
+		}
+	}
 	t.Transpose = trans
 	t.ReverseMap = make(map[int]int, len(t.NoteMap))
 	for key, val := range t.NoteMap {
@@ -229,31 +239,12 @@ func (t *Transposer) Open() error {
 	if debug {
 		fmt.Println("Transposer Open()")
 	}
-	// Default transposition function provided if the user does not
-	// override or supply their own.
 	t.inPort.Open()
 	t.outPort.Open()
+	// TODO: Why isn't this in a constructor?
+	// Default transposition function provided if the user does not
+	// override or supply their own.
 	if t.Transpose == nil {
-		t.Transpose = func(t1 Transposer) {
-			for {
-				select {
-				case noteOn := <-t.InPort().NoteOns():
-					key, ok := t.NoteMap[noteOn.Key]
-					if ok {
-						noteOn.Key = key
-					}
-					t.OutPort().NoteOns() <- noteOn
-				case noteOff := <-t.InPort().NoteOffs():
-					key, ok := t.NoteMap[noteOff.Key]
-					if ok {
-						noteOff.Key = key
-					}
-					t.OutPort().NoteOffs() <- noteOff
-				case cc := <-t.InPort().ControlChanges():
-					t.OutPort().ControlChanges() <- cc
-				}
-			}
-		}
 	}
 	return nil
 }

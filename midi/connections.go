@@ -68,21 +68,11 @@ func (p Pipe) Run() {
 	go p.To.Run()
 	for {
 		select {
-		case noteOn, ok := <-input.NoteOns():
-			if !ok {
+		case e, ok := <-input.Events():
+			if !ok { // TODO(aoeu): What is this check for?
 				return
 			}
-			output.NoteOns() <- noteOn
-		case noteOff, ok := <-input.NoteOffs():
-			if !ok {
-				return
-			}
-			output.NoteOffs() <- noteOff
-		case cc, ok := <-input.ControlChanges():
-			if !ok {
-				return
-			}
-			output.ControlChanges() <- cc
+			output.Events() <- e
 		case <-p.stop:
 			return
 		}
@@ -137,31 +127,13 @@ func (r Router) Run() {
 	}
 	for {
 		select {
-		case noteOn, ok := <-r.From.OutPort().NoteOns():
+		case e, ok := <-r.From.OutPort().Events():
 			if !ok {
 				return
 			}
 			go func() {
 				for _, to := range r.To {
-					to.InPort().NoteOns() <- noteOn
-				}
-			}()
-		case noteOff, ok := <-r.From.OutPort().NoteOffs():
-			if !ok {
-				return
-			}
-			go func() {
-				for _, to := range r.To {
-					to.InPort().NoteOffs() <- noteOff
-				}
-			}()
-		case cc, ok := <-r.From.OutPort().ControlChanges():
-			if !ok {
-				return
-			}
-			go func() {
-				for _, to := range r.To {
-					to.InPort().ControlChanges() <- cc
+					to.InPort().Events() <- e
 				}
 			}()
 		case <-r.stop:
@@ -225,12 +197,8 @@ func (f Funnel) Run() {
 		go func() {
 			for {
 				select {
-				case noteOn := <-from.OutPort().NoteOns():
-					f.To.InPort().NoteOns() <- noteOn
-				case noteOff := <-from.OutPort().NoteOffs():
-					f.To.InPort().NoteOffs() <- noteOff
-				case cc := <-from.OutPort().ControlChanges():
-					f.To.InPort().ControlChanges() <- cc
+				case e := <-from.OutPort().Events():
+					f.To.InPort().Events() <- e
 				case <-f.stop:
 					f.stop <- true // Send stop again for the next goroutine.
 					return

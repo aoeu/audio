@@ -24,9 +24,7 @@ type Port interface {
 	Close() error
 	IsOpen() bool
 	Run()
-	NoteOns() chan Note
-	NoteOffs() chan Note
-	ControlChanges() chan ControlChange
+	Events() chan Event
 }
 
 func makePortMidiError(errNum C.PmError) error {
@@ -39,25 +37,19 @@ func makePortMidiError(errNum C.PmError) error {
 
 // Implements Port, prentinding to be a system port for transposed values.
 type FakePort struct {
-	isOpen         bool
-	noteOns        chan Note
-	noteOffs       chan Note
-	controlChanges chan ControlChange
-	IsInputPort    bool
+	isOpen      bool
+	events      chan Event
+	IsInputPort bool
 }
 
 func (t *FakePort) Open() error {
 	t.isOpen = true
-	t.noteOns = make(chan Note, BufferSize)
-	t.noteOffs = make(chan Note, BufferSize)
-	t.controlChanges = make(chan ControlChange, BufferSize)
+	t.events = make(chan Event, BufferSize)
 	return nil
 }
 
 func (t *FakePort) Close() error {
-	close(t.noteOns)
-	close(t.noteOffs)
-	close(t.controlChanges)
+	close(t.events)
 	t.isOpen = false
 	return nil
 }
@@ -70,28 +62,18 @@ func (t FakePort) Run() {
 	// Do nothing, Run is handled by the Transposer.
 }
 
-func (t FakePort) NoteOns() chan Note {
-	return t.noteOns
-}
-
-func (t FakePort) NoteOffs() chan Note {
-	return t.noteOffs
-}
-
-func (t FakePort) ControlChanges() chan ControlChange {
-	return t.controlChanges
+func (t FakePort) Events() chan Event {
+	return t.events
 }
 
 // Implements Port, abstracting a system MIDI stream as a port.
 type SystemPort struct {
-	isOpen         bool
-	IsInputPort    bool
-	id             int
-	stream         unsafe.Pointer
-	noteOns        chan Note
-	noteOffs       chan Note
-	controlChanges chan ControlChange
-	stop           chan bool
+	isOpen      bool
+	IsInputPort bool
+	id          int
+	stream      unsafe.Pointer
+	events      chan Event
+	stop        chan bool
 }
 
 func (s *SystemPort) Open() error {
@@ -115,9 +97,7 @@ func (s *SystemPort) Open() error {
 	if errNum == 0 {
 		s.isOpen = true
 		s.stop = make(chan bool, 1)
-		s.noteOns = make(chan Note, BufferSize)
-		s.noteOffs = make(chan Note, BufferSize)
-		s.controlChanges = make(chan ControlChange, BufferSize)
+		s.events = make(chan Event, BufferSize)
 	}
 	return makePortMidiError(errNum)
 }
@@ -127,9 +107,7 @@ func (s *SystemPort) Close() error {
 		s.isOpen = false
 		s.stop <- true
 		errNum := C.Pm_Close(s.stream)
-		close(s.noteOns)
-		close(s.noteOffs)
-		close(s.controlChanges)
+		close(s.events)
 		return makePortMidiError(errNum)
 	}
 	return nil
@@ -152,6 +130,9 @@ func (s SystemPort) Run() {
 	}
 }
 
+// TODO: Event should be an interface.
+// TODO: Rename InPort to InputPort
+// TODO: Rename OutPort to OutputPort
 func (s SystemPort) RunInPort() {
 	if debug {
 		fmt.Println("SystemPort", s.id, "RunInPort()")
@@ -159,15 +140,18 @@ func (s SystemPort) RunInPort() {
 	// A device's input port receives data - write to the port.
 	for {
 		select {
-		case noteOn := <-s.NoteOns():
-			s.writeEvent(Event{noteOn.Channel, NOTE_ON,
-				noteOn.Key, noteOn.Velocity})
-		case noteOff := <-s.NoteOffs():
-			s.writeEvent(Event{noteOff.Channel, NOTE_OFF,
-				noteOff.Key, noteOff.Velocity})
-		case cc := <-s.ControlChanges():
-			s.writeEvent(Event{cc.Channel, CONTROL_CHANGE,
-				cc.ID, cc.Value})
+		case e := <-s.Events():
+			switch e.(type) {
+			case NoteOn:
+				s.writeEvent(Event{noteOn.Channel, NOTE_ON,
+					noteOn.Key, noteOn.Velocity})
+			case NoteOff:
+				s.writeEvent(Event{noteOff.Channel, NOTE_OFF,
+					noteOff.Key, noteOff.Velocity})
+			case ControlChange:
+				s.writeEvent(Event{cc.Channel, CONTROL_CHANGE,
+					cc.ID, cc.Value})
+			}
 		case <-s.stop:
 			return
 		}
@@ -201,35 +185,23 @@ func (s SystemPort) RunOutPort() {
 			}
 			switch e.Command {
 			case NOTE_ON:
-				if e.Data2 == 0 {
-					// Note On with velocity 0 is a Note Off.
-					s.NoteOffs() <- Note{e.Channel, e.Data1, e.Data2}
-				} else {
-					s.NoteOns() <- Note{e.Channel, e.Data1, e.Data2}
-				}
+				s.Events() <- Note{e.Channel, e.Data1, e.Data2}
 			case NOTE_OFF:
-				s.NoteOffs() <- Note{e.Channel, e.Data1, e.Data2}
+				// Note On with velocity 0 (Data2) is a Note Off.
+				s.Events() <- Note{e.Channel, e.Data1, 0}
 			case CONTROL_CHANGE:
 				name, ok := ControlChangeNames[e.Data1]
 				if !ok {
 					name = "Unknown"
 				}
-				s.ControlChanges() <- ControlChange{e.Channel, e.Data1, e.Data2, name}
+				s.Events() <- ControlChange{e.Channel, e.Data1, e.Data2, name}
 			}
 		}
 	}
 }
 
-func (s SystemPort) NoteOns() chan Note {
-	return s.noteOns
-}
-
-func (s SystemPort) NoteOffs() chan Note {
-	return s.noteOffs
-}
-
-func (s SystemPort) ControlChanges() chan ControlChange {
-	return s.controlChanges
+func (s SystemPort) Events() chan Event {
+	return s.events
 }
 
 func (s SystemPort) poll() (bool, error) {
@@ -253,6 +225,7 @@ func (s SystemPort) poll() (bool, error) {
 	return false, nil // No data available.
 }
 
+// TODO: Fulfill io.Reader and io.Writer interfaces
 func (s SystemPort) readEvent() (event Event, err error) {
 	if s.IsInputPort {
 		err = errors.New("Can only write, not read from input SystemPort.")
