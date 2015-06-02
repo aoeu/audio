@@ -19,7 +19,7 @@ func TestPipe(t *testing.T) {
 	iac2, _ := devices["IAC Driver Bus 2"]
 	pipe, _ := NewPipe(iac1, iac2)
 	go pipe.Run()
-	expected := Note{0, 64, 127}
+	expected := NoteOn{0, 64, 127}
 	// Spoof a MIDI note coming into the device.
 	pipe.From.OutPort().Events() <- expected
 	actual := <-pipe.To.OutPort().Events()
@@ -40,7 +40,7 @@ func testChain(t *testing.T) {
 	chain, _ := NewChain(iac1, iac2, iac3)
 	go chain.Run()
 
-	expected := Note{0, 64, 127}
+	expected := NoteOn{0, 64, 127}
 	chain.Devices[0].OutPort().Events() <- expected
 	actual := <-chain.Devices[2].OutPort().Events()
 
@@ -58,7 +58,7 @@ func TestRouter(t *testing.T) {
 	iac3 := devices["IAC Driver Bus 3"]
 	router, _ := NewRouter(iac1, iac2, iac3)
 	go router.Run()
-	expected := Note{0, 64, 127}
+	expected := NoteOn{0, 64, 127}
 	router.From.OutPort().Events() <- expected
 	actual1 := <-router.To[0].OutPort().Events()
 	actual2 := <-router.To[1].OutPort().Events()
@@ -78,14 +78,14 @@ func testFunnel(t *testing.T) {
 	iac3 := devices["IAC Driver Bus 3"]
 	funnel, _ := NewFunnel(iac1, iac2, iac3)
 	go funnel.Run()
-	expected := Note{0, 64, 127}
+	expected := NoteOn{0, 64, 127}
 	funnel.From[1].OutPort().Events() <- expected
 	actual := <-funnel.To.OutPort().Events()
 	if expected != actual {
 		t.Errorf("Received %q from funnel instead of %q",
 			actual, expected)
 	}
-	expected = Note{0, 95, 64}
+	expected = NoteOn{0, 95, 64}
 	funnel.From[0].OutPort().Events() <- expected
 	actual = <-funnel.To.OutPort().Events()
 	if expected != actual {
@@ -109,7 +109,7 @@ func TestThruDevice(t *testing.T) {
 	thru := NewThruDevice()
 	thru.Open()
 	go thru.Run()
-	expected := Note{0, 64, 127}
+	expected := NoteOn{0, 64, 127}
 	thru.InPort().Events() <- expected
 	actual := <-thru.OutPort().Events()
 	if expected != actual {

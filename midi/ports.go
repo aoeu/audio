@@ -141,17 +141,7 @@ func (s SystemPort) RunInPort() {
 	for {
 		select {
 		case e := <-s.Events():
-			switch e.(type) {
-			case NoteOn:
-				s.writeEvent(Event{noteOn.Channel, NOTE_ON,
-					noteOn.Key, noteOn.Velocity})
-			case NoteOff:
-				s.writeEvent(Event{noteOff.Channel, NOTE_OFF,
-					noteOff.Key, noteOff.Velocity})
-			case ControlChange:
-				s.writeEvent(Event{cc.Channel, CONTROL_CHANGE,
-					cc.ID, cc.Value})
-			}
+			s.writeEvent(e)
 		case <-s.stop:
 			return
 		}
@@ -180,21 +170,22 @@ func (s SystemPort) RunOutPort() {
 			if err != nil {
 				continue // TODO: This is questionable error handling.
 			}
+			m := e.(Message)
 			if debug {
 				fmt.Println("SystemPort RunOutputPort()", s.id, e)
 			}
-			switch e.Command {
+			switch m.Command {
 			case NOTE_ON:
-				s.Events() <- Note{e.Channel, e.Data1, e.Data2}
+				s.Events() <- NoteOn{m.Channel, m.Data1, m.Data2}
 			case NOTE_OFF:
-				// Note On with velocity 0 (Data2) is a Note Off.
-				s.Events() <- Note{e.Channel, e.Data1, 0}
+				// A NoteOn with velocity 0 (Data2) is arguably a Note Off.
+				s.Events() <- NoteOff{m.Channel, m.Data1, 0}
 			case CONTROL_CHANGE:
-				name, ok := ControlChangeNames[e.Data1]
+				name, ok := ControlChangeNames[m.Data1]
 				if !ok {
 					name = "Unknown"
 				}
-				s.Events() <- ControlChange{e.Channel, e.Data1, e.Data2, name}
+				s.Events() <- ControlChange{m.Channel, m.Data1, m.Data2, name}
 			}
 		}
 	}
@@ -229,29 +220,26 @@ func (s SystemPort) poll() (bool, error) {
 func (s SystemPort) readEvent() (event Event, err error) {
 	if s.IsInputPort {
 		err = errors.New("Can only write, not read from input SystemPort.")
-		return Event{}, err
+		return Message{}, err
 	}
 	var buffer C.PmEvent
 	// Only read one event at a time.
 	eventsRead := int(C.Pm_Read(s.stream, &buffer, C.int32_t(1)))
+	m := Message{}
 	if eventsRead > 0 {
 		status := int(buffer.message) & 0xFF
-		event.Channel = int(status & 0x0F)
-		event.Command = int(status & 0xF0)
-		event.Data1 = int((buffer.message >> 8) & 0xFF)
-		event.Data2 = int((buffer.message >> 16) & 0xFF)
+		m.Channel = int(status & 0x0F)
+		m.Command = int(status & 0xF0)
+		m.Data1 = int((buffer.message >> 8) & 0xFF)
+		m.Data2 = int((buffer.message >> 16) & 0xFF)
 		return event, nil
 	}
-	return Event{}, nil // Nothing to read.
+	return m, nil // Nothing to read.
 }
 
 func (s *SystemPort) writeEvent(event Event) error {
-	status := event.Command + event.Channel
-	message := ((uint32(event.Data2) << 16) & 0xFF0000) |
-		((uint32(event.Data1) << 8) & 0x00FF00) |
-		(uint32(status) & 0x0000FF)
+	message := event.ToRawMessage()
 	if debug {
-		//spew.Dump(event, message)
 		fmt.Printf("%b\n", message)
 	}
 	buffer := C.PmEvent{C.PmMessage(message), 0}
@@ -264,9 +252,9 @@ func (s *SystemPort) writeEvent(event Event) error {
 // broadcast many disparate types of messages to hardware where the order of
 // message arrival matters greatly. It exists to handle an edge case on one
 // piece of hardware and its peculiar internal protocols.
-func (s *SystemPort) WriteRawEvent(e Event) error {
+func (s *SystemPort) WriteRawEvent(m Message) error {
 	if !s.IsInputPort {
 		return nil
 	}
-	return s.writeEvent(e)
+	return s.writeEvent(m) // TODO(aoeu): Assert this works without bit bashing.
 }

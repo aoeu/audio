@@ -2,8 +2,8 @@ package audio
 
 import (
 	"audio/encoding/wave"
-	"time"
 	"testing"
+	"time"
 )
 
 // TODO: Reinvestigate best sound files to use and restore tests.

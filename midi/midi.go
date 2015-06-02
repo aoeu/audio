@@ -11,17 +11,40 @@ const (
 	CONTROL_CHANGE int = 176
 )
 
-type Event struct {
+type Event interface {
+	ToRawMessage() uint32
+}
+
+type Message struct {
 	Channel int
 	Command int
 	Data1   int
 	Data2   int
 }
 
-type Note struct {
+func (m Message) ToRawMessage() uint32 {
+	status := m.Command + m.Channel
+	message := ((uint32(m.Data2) << 16) & 0xFF0000) |
+		((uint32(m.Data1) << 8) & 0x00FF00) |
+		(uint32(status) & 0x0000FF)
+	return message
+}
+
+
+type NoteOn struct {
 	Channel  int
 	Key      int
 	Velocity int
+}
+
+func (n NoteOn) ToRawMessage() uint32 {
+	return Message{n.Channel, NOTE_ON, n.Key, n.Velocity}.ToRawMessage()
+}
+
+type NoteOff NoteOn
+
+func (n NoteOff) ToRawMessage() uint32 {
+	return Message{n.Channel, NOTE_OFF, n.Key, n.Velocity}.ToRawMessage()
 }
 
 type ControlChange struct {
@@ -29,6 +52,11 @@ type ControlChange struct {
 	ID      int // a.k.a. Control Change "number"
 	Value   int
 	Name    string // What the ID is used for as per the General MIDI spec.
+}
+
+func (c ControlChange) ToRawMessage() uint32 {
+	e := Message{c.Channel, CONTROL_CHANGE, c.ID, c.Value}
+	return e.ToRawMessage()
 }
 
 // General MIDI names for various ControlChange IDs.

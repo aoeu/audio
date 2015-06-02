@@ -215,8 +215,14 @@ func NewTransposer(noteMap map[int]int, trans Transposition) (t *Transposer) {
 		trans = func(t1 Transposer) {
 			for {
 				switch e := <-t.InPort().Events(); e.(type) {
-				case Note:
-					n := e.(Note)
+				case NoteOn:
+					n := e.(NoteOn)
+					if key, ok := t.NoteMap[n.Key]; ok {
+						n.Key = key
+					}
+					t.OutPort().Events() <- n
+				case NoteOff:
+					n := e.(NoteOff)
 					if key, ok := t.NoteMap[n.Key]; ok {
 						n.Key = key
 					}
