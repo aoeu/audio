@@ -166,13 +166,12 @@ func (s SystemPort) RunOutPort() {
 				time.Sleep(1 * time.Millisecond)
 				continue
 			}
-			e, err := s.readEvent()
+			m, err := s.readEvent()
 			if err != nil {
 				continue // TODO: This is questionable error handling.
 			}
-			m := e.(Message)
 			if debug {
-				fmt.Println("SystemPort RunOutputPort()", s.id, e)
+				fmt.Println("SystemPort RunOutputPort()", s.id, m)
 			}
 			switch m.Command {
 			case NOTE_ON:
@@ -217,10 +216,9 @@ func (s SystemPort) poll() (bool, error) {
 }
 
 // TODO: Fulfill io.Reader and io.Writer interfaces
-func (s SystemPort) readEvent() (event Event, err error) {
+func (s SystemPort) readEvent() (Message, error) {
 	if s.IsInputPort {
-		err = errors.New("Can only write, not read from input SystemPort.")
-		return Message{}, err
+		return Message{}, errors.New("Can only write, not read from input SystemPort.")
 	}
 	var buffer C.PmEvent
 	// Only read one event at a time.
@@ -232,9 +230,8 @@ func (s SystemPort) readEvent() (event Event, err error) {
 		m.Command = int(status & 0xF0)
 		m.Data1 = int((buffer.message >> 8) & 0xFF)
 		m.Data2 = int((buffer.message >> 16) & 0xFF)
-		return event, nil
 	}
-	return m, nil // Nothing to read.
+	return m, nil
 }
 
 func (s *SystemPort) writeEvent(event Event) error {

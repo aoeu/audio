@@ -30,13 +30,11 @@ func main() {
 	sampler.Run()
 	check(err)
 	for {
-		select {
-		case note := <-nanopad.OutPort().NoteOns():
-			go sampler.Play(note.Key, volume)
-		case <-nanopad.OutPort().NoteOffs():
-			continue
-		case <-nanopad.OutPort().ControlChanges():
-			continue
+		e := <-nanopad.OutPort().Events()
+		switch e.(type) {
+		case midi.NoteOn:
+			n := e.(midi.NoteOn)
+			go sampler.Play(n.Key, volume)
 		}
 	}
 	nanopad.Close()
