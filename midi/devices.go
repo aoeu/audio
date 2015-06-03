@@ -198,21 +198,21 @@ func GetDevices() (SystemDevices, error) {
 
 // Implements Device
 type Transposer struct {
-	NoteMap    map[int]int
+	NoteMap    map[int]int // TODO(aoeu): NoteMap isn't generalized enough of a name.
 	inPort     *FakePort
 	outPort    *FakePort
-	Transpose  Transposition
+	Transpose  Transposition // TODO(aoeu): What's a better name for a function?
 	ReverseMap map[int]int
 }
 
 type Transposition func(Transposer)
 
-func NewTransposer(noteMap map[int]int, trans Transposition) (t *Transposer) {
+func NewTransposer(noteMap map[int]int, transposeFunc Transposition) (t *Transposer) {
 	t = &Transposer{NoteMap: noteMap}
 	t.inPort = &FakePort{}
 	t.outPort = &FakePort{}
-	if trans == nil {
-		trans = func(t1 Transposer) {
+	if transposeFunc == nil {
+		transposeFunc = func(t1 Transposer) {
 			for {
 				switch e := <-t.InPort().Events(); e.(type) {
 				case NoteOn:
@@ -233,7 +233,7 @@ func NewTransposer(noteMap map[int]int, trans Transposition) (t *Transposer) {
 			}
 		}
 	}
-	t.Transpose = trans
+	t.Transpose = transposeFunc
 	t.ReverseMap = make(map[int]int, len(t.NoteMap))
 	for key, val := range t.NoteMap {
 		t.ReverseMap[val] = key
@@ -241,30 +241,26 @@ func NewTransposer(noteMap map[int]int, trans Transposition) (t *Transposer) {
 	return
 }
 
+
+
 func (t *Transposer) Open() error {
 	if debug {
 		fmt.Println("Transposer Open()")
 	}
-	t.inPort.Open()
-	t.outPort.Open()
-	// TODO: Why isn't this in a constructor?
-	// Default transposition function provided if the user does not
-	// override or supply their own.
-	if t.Transpose == nil {
+	if err := t.inPort.Open(); err != nil {
+		return err
 	}
-	return nil
+	return t.outPort.Open()
 }
 
 func (t Transposer) Close() (err error) {
 	if debug {
 		fmt.Println("Transposer Close()")
 	}
-	err = t.inPort.Close()
-	if err != nil {
+	if err := t.inPort.Close(); err != nil {
 		return err
 	}
-	err = t.outPort.Close()
-	return err
+	return t.outPort.Close()
 }
 
 func (t Transposer) Run() {
