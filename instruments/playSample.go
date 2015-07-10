@@ -17,7 +17,7 @@ func check(err error) {
 
 func main() {
 	home := os.Getenv("HOME")
-	filePath := home + "/Downloads/0_16.wav"
+	filePath := home + "/Downloads/SD1010.WAV"
 	clip, err := audio.NewClipFromWave(filePath)
 	check(err)
 	s, err := audio.NewSampler(2)

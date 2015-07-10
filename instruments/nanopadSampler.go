@@ -17,8 +17,8 @@ var deviceName string
 var volume float32 = 0.5
 
 func main() {
-	flag.StringVar(&configPath, "config", "sine.json", "A config file mapping MIDI keys to sound file paths.")
-	flag.StringVar(&deviceName, "device", "nanoPAD MIDI 1", "The name of the MIDI controller to use.")
+	flag.StringVar(&configPath, "config", "808.json", "A config file mapping MIDI keys to sound file paths.")
+	flag.StringVar(&deviceName, "device", "nanoPAD2 MIDI 1", "The name of the MIDI controller to use.")
 	flag.Parse()
 	devices, err := midi.GetDevices()
 	check(err)
@@ -27,6 +27,7 @@ func main() {
 	nanopad.Open()
 	go nanopad.Run()
 	sampler, err := audio.NewLoadedSampler(configPath)
+	check(err)
 	sampler.Run()
 	check(err)
 	for {
