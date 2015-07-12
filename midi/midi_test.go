@@ -18,7 +18,7 @@ func TestPipe(t *testing.T) {
 	iac1, _ := devices["IAC Driver Bus 1"]
 	iac2, _ := devices["IAC Driver Bus 2"]
 	pipe, _ := NewPipe(iac1, iac2)
-	go pipe.Run()
+	go pipe.Connect()
 	expected := NoteOn{0, 64, 127}
 	// Spoof a MIDI note coming into the device.
 	pipe.From.OutPort().Events() <- expected
@@ -38,7 +38,7 @@ func testChain(t *testing.T) {
 	iac3, _ := devices["IAC Driver Bus 3"]
 
 	chain, _ := NewChain(iac1, iac2, iac3)
-	go chain.Run()
+	go chain.Connect()
 
 	expected := NoteOn{0, 64, 127}
 	chain.Devices[0].OutPort().Events() <- expected
@@ -57,7 +57,7 @@ func TestRouter(t *testing.T) {
 	iac2 := devices["IAC Driver Bus 2"]
 	iac3 := devices["IAC Driver Bus 3"]
 	router, _ := NewRouter(iac1, iac2, iac3)
-	go router.Run()
+	go router.Connect()
 	expected := NoteOn{0, 64, 127}
 	router.From.OutPort().Events() <- expected
 	actual1 := <-router.To[0].OutPort().Events()
@@ -77,7 +77,7 @@ func testFunnel(t *testing.T) {
 	iac2 := devices["IAC Driver Bus 2"]
 	iac3 := devices["IAC Driver Bus 3"]
 	funnel, _ := NewFunnel(iac1, iac2, iac3)
-	go funnel.Run()
+	go funnel.Connect()
 	expected := NoteOn{0, 64, 127}
 	funnel.From[1].OutPort().Events() <- expected
 	actual := <-funnel.To.OutPort().Events()
@@ -122,7 +122,7 @@ func ExamplePipe() {
 	nanoPad := devices["nanoPAD2 PAD"]
 	iac1 := devices["IAC Driver Bus 1"]
 	pipe, _ := NewPipe(nanoPad, iac1)
-	go pipe.Run()
+	go pipe.Connect()
 	time.Sleep(5 * time.Second)
 	pipe.Stop()
 	devices.Shutdown()
@@ -134,7 +134,7 @@ func ExampleRouter() {
 	iac1 := devices["IAC Driver Bus 1"]
 	iac2 := devices["IAC Driver Bus 2"]
 	router, _ := NewRouter(nanoPad, iac1, iac2)
-	go router.Run()
+	go router.Connect()
 	time.Sleep(5 * time.Second)
 	router.Stop()
 	devices.Shutdown()
@@ -146,7 +146,7 @@ func ExampleChain() {
 	iac1, _ := devices["IAC Driver Bus 1"]
 	iac2, _ := devices["IAC Driver Bus 2"]
 	chain, _ := NewChain(nanoPad, iac1, iac2)
-	go chain.Run()
+	go chain.Connect()
 	time.Sleep(1 * time.Minute)
 	chain.Stop()
 	devices.Shutdown()
@@ -158,7 +158,7 @@ func ExampleTransposer() {
 	transposer := NewTransposer(map[int]int{36: 37, 37: 36}, nil)
 	iac1 := devices["IAC Driver Bus 1"]
 	chain, _ := NewChain(nanoPad, transposer, iac1)
-	go chain.Run()
+	go chain.Connect()
 	time.Sleep(1 * time.Minute)
 	chain.Stop()
 	devices.Shutdown()
@@ -190,7 +190,7 @@ func ExampleChannelTransposer() {
 			}
 		})
 	chain, _ := NewChain(iac1, transposer, iac2)
-	go chain.Run()
+	go chain.Connect()
 	c := make(chan int)
 	<-c // Block forever
 	chain.Stop()
@@ -209,10 +209,10 @@ func ExampleNanopad() {
 		map[int]int{39: 37, 48: 39, 45: 41, 51: 45, 49: 47}, nil)
 
 	chain, _ := NewChain(nanopad, trans, iac1)
-	go chain.Run()
+	go chain.Connect()
 
 	pipe, _ := NewPipe(nanopad2, iac1)
-	go pipe.Run()
+	go pipe.Connect()
 
 	select {}
 }
