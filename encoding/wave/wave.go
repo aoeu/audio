@@ -9,6 +9,7 @@ import (
 	"os"
 	"time"
 	"unsafe"
+	"fmt"
 )
 
 // Equivalent to enums for Wave format codes in C.
@@ -130,6 +131,13 @@ func (w *File) Read() (err error) {
 		return
 	}
 	defer f.Close()
+	if info, err := f.Stat(); err != nil || info.Size() > BytesToReadThreshold {
+		if err != nil {
+			return err
+		}
+		return errors.New(fmt.Sprintf("More bytes in sound file (%v) than allowed threshold (%v)", 
+			info.Size(), BytesToReadThreshold))
+	}
 	var header Header
 	var extChunkSize int16
 	var extChunk ExtensionChunk
@@ -155,9 +163,10 @@ func (w *File) Read() (err error) {
 		return
 	}
 
-	if BytesToReadThreshold < dataChunk.DataChunkSize {
-		err = errors.New("Too many bytes in sound file to read into memory.")
-		return
+	if dataChunk.DataChunkSize > BytesToReadThreshold {
+		return errors.New(
+			fmt.Sprintf("Bad data chuck size %v in file %v (beyond threshold %v)",
+				dataChunk, w.FileName, BytesToReadThreshold))
 	}
 
 	(*w).Handle = f

@@ -3,6 +3,8 @@ package audio
 import (
 	"code.google.com/p/portaudio-go/portaudio"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io/ioutil"
 )
 
@@ -19,10 +21,11 @@ func loadConfig(configFileName string) (Configuration, error) {
 	config := Configuration{}
 	data, err := ioutil.ReadFile(configFileName)
 	if err != nil {
-		return Configuration{}, err
+		s := fmt.Sprintf("Could not read config file: %v\nError: %v",
+			configFileName, err.Error())
+		return Configuration{}, errors.New(s)
 	}
-	err = json.Unmarshal(data, &config)
-	if err != nil {
+	if err := json.Unmarshal(data, &config); err != nil {
 		return Configuration{}, err
 	}
 	return config, nil
@@ -78,23 +81,23 @@ func NewSampler(numChannels int) (*Sampler, error) {
 // Creates a new software sampler
 // loaded with audio files specified in a JSON configuration file.
 func NewLoadedSampler(configFileName string) (*Sampler, error) {
+	config, err := loadConfig(configFileName)
+	if err != nil {
+		return &Sampler{}, err
+	}
 	numChannels := 2
 	s, err := NewSampler(numChannels)
 	if err != nil {
-		return s, err
-	}
-	config, err := loadConfig(configFileName)
-	if err != nil {
-		return s, err
+		return &Sampler{}, err
 	}
 	for _, entry := range config {
 		clip, err := NewClipFromWave(entry.FileName)
 		if err != nil {
-			return s, err
+			return &Sampler{}, err
 		}
 		s.AddClip(clip, entry.NoteNum)
 	}
-	return s, err
+	return s, nil
 }
 
 // Adds a new audio-clip to be played back by the sampler.
@@ -105,7 +108,9 @@ func (s *Sampler) AddClip(c *Clip, noteNum int) {
 
 // Runs the sampler, commencing output to an audio device.
 func (s *Sampler) Run() error {
-	portaudio.Initialize()
+	if err := portaudio.Initialize(); err != nil {
+		return err
+	}
 	var err error
 	s.stream, err = portaudio.OpenDefaultStream(0, 2, 44100, 0, s.processAudio)
 	if err != nil {
