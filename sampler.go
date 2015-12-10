@@ -106,13 +106,17 @@ func (s *Sampler) AddClip(c *Clip, noteNum int) {
 	s.buffer.IncreaseLen(c.LenPerChannel())
 }
 
-// Runs the sampler, commencing output to an audio device.
 func (s *Sampler) Run() error {
+	return RunAtRate(44100)
+}
+
+// Runs the sampler, commencing output to an audio device.
+func (s *Sampler) RunAtRate(sampleRate int) error {
 	if err := portaudio.Initialize(); err != nil {
 		return err
 	}
 	var err error
-	s.stream, err = portaudio.OpenDefaultStream(0, 2, 44100, 0, s.processAudio)
+	s.stream, err = portaudio.OpenDefaultStream(0, 2, sampleRate, 0, s.processAudio)
 	if err != nil {
 		return err
 	}
