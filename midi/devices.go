@@ -18,9 +18,11 @@ import "C"
 import "fmt"
 
 // Generic device for any software or hardware capable of sending and receiving MIDI.
-type Device interface {
-	InPort() Port  // MIDI Messages inbound to the device are received from the InPort.
-	OutPort() Port // MIDI Messages outbound from the device are received from the OutPort.
+type Device struct {
+	in Port 
+	out Port
+	In chan Event  // MIDI Messages inbound to the device are received from the In channel.
+	Out chan Event // MIDI Messages outbound from the device are received from the Out channel.
 }
 
 type Opener interface {
@@ -37,8 +39,8 @@ type Runner interface {
 
 // Implements Device, used to route MIDI data.
 type ThruDevice struct {
-	inPort  *FakePort
-	outPort *FakePort
+	in  *FakePort
+	out *FakePort
 	stop    chan bool
 }
 
@@ -49,15 +51,15 @@ func NewThruDevice() *ThruDevice {
 
 // Opens a thru device for MIDI streaming.
 func (t *ThruDevice) Open() error {
-	t.inPort.Open()
-	t.outPort.Open()
+	t.in.Open()
+	t.out.Open()
 	return nil
 }
 
 // Closes a thru device from MIDI streaming.
 func (t ThruDevice) Close() (err error) {
-	t.inPort.Close()
-	t.outPort.Close()
+	t.in.Close()
+	t.out.Close()
 	return nil
 }
 
@@ -65,27 +67,17 @@ func (t ThruDevice) Close() (err error) {
 func (t ThruDevice) Run() {
 	for {
 		select {
-		case t.outPort.Events() <- <-t.inPort.Events():
+		case t.Out <- <-t.In:
 		case <-t.stop:
 			return
 		}
 	}
 }
 
-// Method to access the MIDI input port.
-func (t ThruDevice) InPort() Port {
-	return t.inPort
-}
-
-// Method to access the MIDI output port.
-func (t ThruDevice) OutPort() Port {
-	return t.outPort
-}
-
 // Represents a software or hardware MIDI device on the system.
 type SystemDevice struct { // Implements Device
-	inPort  *SystemPort
-	outPort *SystemPort
+	in  *SystemPort
+	out *SystemPort
 	Name    string
 }
 
@@ -94,11 +86,11 @@ func (s SystemDevice) Open() error {
 	if debug {
 		fmt.Println("SystemDevice", s.Name, "Open()")
 	}
-	err := s.InPort().Open()
+	err := s.in.Open()
 	if err != nil {
 		return err
 	}
-	err = s.OutPort().Open()
+	err = s.out.Open()
 	return err
 }
 
@@ -107,11 +99,11 @@ func (s SystemDevice) Close() error {
 	if debug {
 		fmt.Println("SystemDevice", s.Name, "Close()")
 	}
-	err := s.InPort().Close()
+	err := s.in.Close()
 	if err != nil {
 		return err
 	}
-	err = s.OutPort().Close()
+	err = s.out.Close()
 	return err
 }
 
@@ -119,20 +111,12 @@ func (s SystemDevice) Run() {
 	if debug {
 		fmt.Println("SystemDevice", s.Name, "Run()")
 	}
-	if s.InPort().IsOpen() {
-		go s.InPort().Run()
+	if s.in.IsOpen() {
+		go s.in.Run()
 	}
-	if s.OutPort().IsOpen() {
-		go s.OutPort().Run()
+	if s.out.IsOpen() {
+		go s.out.Run()
 	}
-}
-
-func (s SystemDevice) InPort() Port {
-	return s.inPort
-}
-
-func (s SystemDevice) OutPort() Port {
-	return s.outPort
 }
 
 func getSystemDevices() (inputs, outputs []SystemDevice) {
@@ -155,12 +139,12 @@ func getSystemDevices() (inputs, outputs []SystemDevice) {
 		device := SystemDevice{Name: name}
 
 		if isInputPort {
-			device.inPort = port
-			device.outPort = &SystemPort{isOpen: false, id: -1}
+			device.in = port
+			device.out = &SystemPort{isOpen: false, id: -1}
 			inputs = append(inputs, device)
 		} else if isOutputPort {
-			device.outPort = port
-			device.inPort = &SystemPort{isOpen: false, id: -1}
+			device.out = port
+			device.in = &SystemPort{isOpen: false, id: -1}
 			outputs = append(outputs, device)
 		}
 	}
@@ -173,8 +157,8 @@ type SystemDevices map[string]SystemDevice
 func (s *SystemDevices) Shutdown() error {
 	m := map[string]SystemDevice(*s)
 	for _, device := range m {
-		device.InPort().Close()
-		device.OutPort().Close()
+		device.in.Close()
+		device.out.Close()
 	}
 	return nil
 	errNum := C.Pm_Terminate()
@@ -189,8 +173,8 @@ func GetDevices() (SystemDevices, error) {
 	for _, inDev := range inputs {
 		for _, outDev := range outputs {
 			if inDev.Name == outDev.Name {
-				inDev.outPort = outDev.outPort
-				outDev.inPort = inDev.inPort
+				inDev.out = outDev.out
+				outDev.in = inDev.in
 				break
 			}
 		}
@@ -208,8 +192,8 @@ func GetDevices() (SystemDevices, error) {
 // Implements Device
 type Transposer struct {
 	NoteMap    map[int]int // TODO(aoeu): NoteMap isn't generalized enough of a name.
-	inPort     *FakePort
-	outPort    *FakePort
+	in     *FakePort
+	out    *FakePort
 	Transpose  Transposition // TODO(aoeu): What's a better name for a function?
 	ReverseMap map[int]int
 }
@@ -218,26 +202,26 @@ type Transposition func(Transposer)
 
 func NewTransposer(noteMap map[int]int, transposeFunc Transposition) (t *Transposer) {
 	t = &Transposer{NoteMap: noteMap}
-	t.inPort = &FakePort{}
-	t.outPort = &FakePort{}
+	t.in = &FakePort{}
+	t.out = &FakePort{}
 	if transposeFunc == nil {
 		transposeFunc = func(t1 Transposer) {
 			for {
-				switch e := <-t.InPort().Events(); e.(type) {
+				switch e := <-t.In; e.(type) {
 				case NoteOn:
 					n := e.(NoteOn)
 					if key, ok := t.NoteMap[n.Key]; ok {
 						n.Key = key
 					}
-					t.OutPort().Events() <- n
+					t.Out <- n
 				case NoteOff:
 					n := e.(NoteOff)
 					if key, ok := t.NoteMap[n.Key]; ok {
 						n.Key = key
 					}
-					t.OutPort().Events() <- n
+					t.Out <- n
 				default:
-					t.OutPort().Events() <- e
+					t.Out <- e
 				}
 			}
 		}
@@ -256,20 +240,20 @@ func (t *Transposer) Open() error {
 	if debug {
 		fmt.Println("Transposer Open()")
 	}
-	if err := t.inPort.Open(); err != nil {
+	if err := t.in.Open(); err != nil {
 		return err
 	}
-	return t.outPort.Open()
+	return t.out.Open()
 }
 
 func (t Transposer) Close() (err error) {
 	if debug {
 		fmt.Println("Transposer Close()")
 	}
-	if err := t.inPort.Close(); err != nil {
+	if err := t.in.Close(); err != nil {
 		return err
 	}
-	return t.outPort.Close()
+	return t.out.Close()
 }
 
 func (t Transposer) Run() {
@@ -277,12 +261,4 @@ func (t Transposer) Run() {
 		fmt.Println("Transposer Run()")
 	}
 	t.Transpose(t)
-}
-
-func (t Transposer) InPort() Port {
-	return t.inPort
-}
-
-func (t Transposer) OutPort() Port {
-	return t.outPort
 }
