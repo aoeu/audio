@@ -19,11 +19,20 @@ import "fmt"
 
 // Generic device for any software or hardware capable of sending and receiving MIDI.
 type Device interface {
+	InPort() Port  // MIDI Messages inbound to the device are received from the InPort.
+	OutPort() Port // MIDI Messages outbound from the device are received from the OutPort.
+}
+
+type Opener interface {
 	Open() error
+}
+
+type Closer interface {
 	Close() error
+}
+
+type Runner interface {
 	Run()
-	InPort() Port  // Stuff going into the device is received on the InPort.
-	OutPort() Port // Stuff coming from the device is sent from the OutPort.
 }
 
 // Implements Device, used to route MIDI data.
