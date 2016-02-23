@@ -56,12 +56,7 @@ func (t ThruDevice) Close() (err error) {
 func (t ThruDevice) Run() {
 	for {
 		select {
-		case noteOn := <-t.inPort.NoteOns():
-			t.outPort.NoteOns() <- noteOn
-		case noteOff := <-t.inPort.NoteOffs():
-			t.outPort.NoteOffs() <- noteOff
-		case cc := <-t.outPort.ControlChanges():
-			t.outPort.ControlChanges() <- cc
+		case t.outPort.Events() <- <-t.inPort.Events():
 		case <-t.stop:
 			return
 		}
@@ -98,8 +93,7 @@ func (s SystemDevice) Open() error {
 	return err
 }
 
-
-// Closes 
+// Closes
 func (s SystemDevice) Close() error {
 	if debug {
 		fmt.Println("SystemDevice", s.Name, "Close()")
@@ -204,20 +198,42 @@ func GetDevices() (SystemDevices, error) {
 
 // Implements Device
 type Transposer struct {
-	NoteMap    map[int]int
+	NoteMap    map[int]int // TODO(aoeu): NoteMap isn't generalized enough of a name.
 	inPort     *FakePort
 	outPort    *FakePort
-	Transpose  Transposition
+	Transpose  Transposition // TODO(aoeu): What's a better name for a function?
 	ReverseMap map[int]int
 }
 
 type Transposition func(Transposer)
 
-func NewTransposer(noteMap map[int]int, trans Transposition) (t *Transposer) {
+func NewTransposer(noteMap map[int]int, transposeFunc Transposition) (t *Transposer) {
 	t = &Transposer{NoteMap: noteMap}
 	t.inPort = &FakePort{}
 	t.outPort = &FakePort{}
-	t.Transpose = trans
+	if transposeFunc == nil {
+		transposeFunc = func(t1 Transposer) {
+			for {
+				switch e := <-t.InPort().Events(); e.(type) {
+				case NoteOn:
+					n := e.(NoteOn)
+					if key, ok := t.NoteMap[n.Key]; ok {
+						n.Key = key
+					}
+					t.OutPort().Events() <- n
+				case NoteOff:
+					n := e.(NoteOff)
+					if key, ok := t.NoteMap[n.Key]; ok {
+						n.Key = key
+					}
+					t.OutPort().Events() <- n
+				default:
+					t.OutPort().Events() <- e
+				}
+			}
+		}
+	}
+	t.Transpose = transposeFunc
 	t.ReverseMap = make(map[int]int, len(t.NoteMap))
 	for key, val := range t.NoteMap {
 		t.ReverseMap[val] = key
@@ -225,49 +241,26 @@ func NewTransposer(noteMap map[int]int, trans Transposition) (t *Transposer) {
 	return
 }
 
+
+
 func (t *Transposer) Open() error {
 	if debug {
 		fmt.Println("Transposer Open()")
 	}
-	// Default transposition function provided if the user does not
-	// override or supply their own.
-	t.inPort.Open()
-	t.outPort.Open()
-	if t.Transpose == nil {
-		t.Transpose = func(t1 Transposer) {
-			for {
-				select {
-				case noteOn := <-t.InPort().NoteOns():
-					key, ok := t.NoteMap[noteOn.Key]
-					if ok {
-						noteOn.Key = key
-					}
-					t.OutPort().NoteOns() <- noteOn
-				case noteOff := <-t.InPort().NoteOffs():
-					key, ok := t.NoteMap[noteOff.Key]
-					if ok {
-						noteOff.Key = key
-					}
-					t.OutPort().NoteOffs() <- noteOff
-				case cc := <-t.InPort().ControlChanges():
-					t.OutPort().ControlChanges() <- cc
-				}
-			}
-		}
+	if err := t.inPort.Open(); err != nil {
+		return err
 	}
-	return nil
+	return t.outPort.Open()
 }
 
 func (t Transposer) Close() (err error) {
 	if debug {
 		fmt.Println("Transposer Close()")
 	}
-	err = t.inPort.Close()
-	if err != nil {
+	if err := t.inPort.Close(); err != nil {
 		return err
 	}
-	err = t.outPort.Close()
-	return err
+	return t.outPort.Close()
 }
 
 func (t Transposer) Run() {

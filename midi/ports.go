@@ -24,9 +24,7 @@ type Port interface {
 	Close() error
 	IsOpen() bool
 	Run()
-	NoteOns() chan Note
-	NoteOffs() chan Note
-	ControlChanges() chan ControlChange
+	Events() chan Event
 }
 
 func makePortMidiError(errNum C.PmError) error {
@@ -39,25 +37,19 @@ func makePortMidiError(errNum C.PmError) error {
 
 // Implements Port, prentinding to be a system port for transposed values.
 type FakePort struct {
-	isOpen         bool
-	noteOns        chan Note
-	noteOffs       chan Note
-	controlChanges chan ControlChange
-	IsInputPort    bool
+	isOpen      bool
+	events      chan Event
+	IsInputPort bool
 }
 
 func (t *FakePort) Open() error {
 	t.isOpen = true
-	t.noteOns = make(chan Note, BufferSize)
-	t.noteOffs = make(chan Note, BufferSize)
-	t.controlChanges = make(chan ControlChange, BufferSize)
+	t.events = make(chan Event, BufferSize)
 	return nil
 }
 
 func (t *FakePort) Close() error {
-	close(t.noteOns)
-	close(t.noteOffs)
-	close(t.controlChanges)
+	close(t.events)
 	t.isOpen = false
 	return nil
 }
@@ -70,28 +62,18 @@ func (t FakePort) Run() {
 	// Do nothing, Run is handled by the Transposer.
 }
 
-func (t FakePort) NoteOns() chan Note {
-	return t.noteOns
-}
-
-func (t FakePort) NoteOffs() chan Note {
-	return t.noteOffs
-}
-
-func (t FakePort) ControlChanges() chan ControlChange {
-	return t.controlChanges
+func (t FakePort) Events() chan Event {
+	return t.events
 }
 
 // Implements Port, abstracting a system MIDI stream as a port.
 type SystemPort struct {
-	isOpen         bool
-	IsInputPort    bool
-	id             int
-	stream         unsafe.Pointer
-	noteOns        chan Note
-	noteOffs       chan Note
-	controlChanges chan ControlChange
-	stop           chan bool
+	isOpen      bool
+	IsInputPort bool
+	id          int
+	stream      unsafe.Pointer
+	events      chan Event
+	stop        chan bool
 }
 
 func (s *SystemPort) Open() error {
@@ -115,9 +97,7 @@ func (s *SystemPort) Open() error {
 	if errNum == 0 {
 		s.isOpen = true
 		s.stop = make(chan bool, 1)
-		s.noteOns = make(chan Note, BufferSize)
-		s.noteOffs = make(chan Note, BufferSize)
-		s.controlChanges = make(chan ControlChange, BufferSize)
+		s.events = make(chan Event, BufferSize)
 	}
 	return makePortMidiError(errNum)
 }
@@ -127,9 +107,7 @@ func (s *SystemPort) Close() error {
 		s.isOpen = false
 		s.stop <- true
 		errNum := C.Pm_Close(s.stream)
-		close(s.noteOns)
-		close(s.noteOffs)
-		close(s.controlChanges)
+		close(s.events)
 		return makePortMidiError(errNum)
 	}
 	return nil
@@ -152,6 +130,9 @@ func (s SystemPort) Run() {
 	}
 }
 
+// TODO: Event should be an interface.
+// TODO: Rename InPort to InputPort
+// TODO: Rename OutPort to OutputPort
 func (s SystemPort) RunInPort() {
 	if debug {
 		fmt.Println("SystemPort", s.id, "RunInPort()")
@@ -159,15 +140,8 @@ func (s SystemPort) RunInPort() {
 	// A device's input port receives data - write to the port.
 	for {
 		select {
-		case noteOn := <-s.NoteOns():
-			s.writeEvent(Event{noteOn.Channel, NOTE_ON,
-				noteOn.Key, noteOn.Velocity})
-		case noteOff := <-s.NoteOffs():
-			s.writeEvent(Event{noteOff.Channel, NOTE_OFF,
-				noteOff.Key, noteOff.Velocity})
-		case cc := <-s.ControlChanges():
-			s.writeEvent(Event{cc.Channel, CONTROL_CHANGE,
-				cc.ID, cc.Value})
+		case e := <-s.Events():
+			s.writeEvent(e)
 		case <-s.stop:
 			return
 		}
@@ -192,44 +166,32 @@ func (s SystemPort) RunOutPort() {
 				time.Sleep(1 * time.Millisecond)
 				continue
 			}
-			e, err := s.readEvent()
+			m, err := s.readEvent()
 			if err != nil {
 				continue // TODO: This is questionable error handling.
 			}
 			if debug {
-				fmt.Println("SystemPort RunOutputPort()", s.id, e)
+				fmt.Println("SystemPort RunOutputPort()", s.id, m)
 			}
-			switch e.Command {
+			switch m.Command {
 			case NOTE_ON:
-				if e.Data2 == 0 {
-					// Note On with velocity 0 is a Note Off.
-					s.NoteOffs() <- Note{e.Channel, e.Data1, e.Data2}
-				} else {
-					s.NoteOns() <- Note{e.Channel, e.Data1, e.Data2}
-				}
+				s.Events() <- NoteOn{m.Channel, m.Data1, m.Data2}
 			case NOTE_OFF:
-				s.NoteOffs() <- Note{e.Channel, e.Data1, e.Data2}
+				// A NoteOn with velocity 0 (Data2) is arguably a Note Off.
+				s.Events() <- NoteOff{m.Channel, m.Data1, 0}
 			case CONTROL_CHANGE:
-				name, ok := ControlChangeNames[e.Data1]
+				name, ok := ControlChangeNames[m.Data1]
 				if !ok {
 					name = "Unknown"
 				}
-				s.ControlChanges() <- ControlChange{e.Channel, e.Data1, e.Data2, name}
+				s.Events() <- ControlChange{m.Channel, m.Data1, m.Data2, name}
 			}
 		}
 	}
 }
 
-func (s SystemPort) NoteOns() chan Note {
-	return s.noteOns
-}
-
-func (s SystemPort) NoteOffs() chan Note {
-	return s.noteOffs
-}
-
-func (s SystemPort) ControlChanges() chan ControlChange {
-	return s.controlChanges
+func (s SystemPort) Events() chan Event {
+	return s.events
 }
 
 func (s SystemPort) poll() (bool, error) {
@@ -253,32 +215,28 @@ func (s SystemPort) poll() (bool, error) {
 	return false, nil // No data available.
 }
 
-func (s SystemPort) readEvent() (event Event, err error) {
+// TODO: Fulfill io.Reader and io.Writer interfaces
+func (s SystemPort) readEvent() (Message, error) {
 	if s.IsInputPort {
-		err = errors.New("Can only write, not read from input SystemPort.")
-		return Event{}, err
+		return Message{}, errors.New("Can only write, not read from input SystemPort.")
 	}
 	var buffer C.PmEvent
 	// Only read one event at a time.
 	eventsRead := int(C.Pm_Read(s.stream, &buffer, C.int32_t(1)))
+	m := Message{}
 	if eventsRead > 0 {
 		status := int(buffer.message) & 0xFF
-		event.Channel = int(status & 0x0F)
-		event.Command = int(status & 0xF0)
-		event.Data1 = int((buffer.message >> 8) & 0xFF)
-		event.Data2 = int((buffer.message >> 16) & 0xFF)
-		return event, nil
+		m.Channel = int(status & 0x0F)
+		m.Command = int(status & 0xF0)
+		m.Data1 = int((buffer.message >> 8) & 0xFF)
+		m.Data2 = int((buffer.message >> 16) & 0xFF)
 	}
-	return Event{}, nil // Nothing to read.
+	return m, nil
 }
 
 func (s *SystemPort) writeEvent(event Event) error {
-	status := event.Command + event.Channel
-	message := ((uint32(event.Data2) << 16) & 0xFF0000) |
-		((uint32(event.Data1) << 8) & 0x00FF00) |
-		(uint32(status) & 0x0000FF)
+	message := event.ToRawMessage()
 	if debug {
-		//spew.Dump(event, message)
 		fmt.Printf("%b\n", message)
 	}
 	buffer := C.PmEvent{C.PmMessage(message), 0}
@@ -291,9 +249,9 @@ func (s *SystemPort) writeEvent(event Event) error {
 // broadcast many disparate types of messages to hardware where the order of
 // message arrival matters greatly. It exists to handle an edge case on one
 // piece of hardware and its peculiar internal protocols.
-func (s *SystemPort) WriteRawEvent(e Event) error {
+func (s *SystemPort) WriteRawEvent(m Message) error {
 	if !s.IsInputPort {
 		return nil
 	}
-	return s.writeEvent(e)
+	return s.writeEvent(m) // TODO(aoeu): Assert this works without bit bashing.
 }

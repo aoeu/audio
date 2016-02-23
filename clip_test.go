@@ -1,14 +1,14 @@
 package audio
 
 import (
-	"audio/encoding/wave"
-	"time"
+	"github.com/aoeu/audio/encoding/wave"
 	"testing"
+	"time"
 )
 
 // TODO: Reinvestigate best sound files to use and restore tests.
 
-var testSoundFilePath string = "samples/testing/sine.wav"
+var testSoundFilePath string = "resources/testing/sine.wav"
 
 func TestNewClipFromWave(t *testing.T) {
 	c, _ := NewClipFromWave(testSoundFilePath)
@@ -24,7 +24,10 @@ func TestNewClipFromWave(t *testing.T) {
 }
 
 func TestNewWaveFromClip(t *testing.T) {
-	c, _ := NewClipFromWave(testSoundFilePath)
+	c, err := NewClipFromWave(testSoundFilePath)
+	if err != nil {
+		t.Errorf("Could not create new clip file file: %v", err)
+	}
 	w, _ := wave.OpenFile(testSoundFilePath)
 	w2 := NewWaveFromClip(c)
 	if len(w.Samples) != len(w2.Samples) {
@@ -80,7 +83,7 @@ func TestLenMilliseconds(t *testing.T) {
 		t.Error(err)
 	}
 	actual := clip.LenMilliseconds()
-	expected := 3235 * time.Millisecond
+	expected := 5000 * time.Millisecond
 	if actual != expected {
 		t.Errorf("Expected length of %d instead of %d\n", expected, actual)
 	}
@@ -91,11 +94,16 @@ func TestAppend(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	twice, err := NewClipFromWave("samples/testing/sine_twice.wav")
+	twice, err := NewClipFromWave("resources/testing/sine_twice.wav")
 	if err != nil {
 		t.Error(err)
 	}
+	e := len(once.Samples[0]) * 2
 	once.Append(once)
+	a := len(once.Samples[0])
+	if e != a {
+		t.Errorf("Expected %d samples instead of %d samples\n", e, a)
+	}
 	for chanNum := 0; chanNum < len(once.Samples); chanNum++ {
 		actualLen := len(once.Samples[chanNum])
 		expectedLen := len(twice.Samples[chanNum])

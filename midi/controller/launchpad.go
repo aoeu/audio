@@ -1,6 +1,6 @@
 package controller
 
-import "audio/midi"
+import "github.com/aoeu/audio/midi"
 
 type Launchpad struct {
 	device           midi.Device

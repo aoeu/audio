@@ -1,7 +1,7 @@
 package audio
 
 import (
-	"audio/encoding/wave"
+	"github.com/aoeu/audio/encoding/wave"
 	"errors"
 	"fmt"
 	"strings"

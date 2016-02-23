@@ -1,8 +1,8 @@
 package main
 
 import (
-	"audio/midi"
-	"audio/midi/controller"
+	"github.com/aoeu/audio/midi"
+	"github.com/aoeu/audio/midi/controller"
 	"fmt"
 	"time"
 )

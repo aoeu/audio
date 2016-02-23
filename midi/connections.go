@@ -6,22 +6,24 @@ import "C"
 import "fmt"
 
 /*
-A Connection is made by associating 2 or more Devices.
-A Connection is initialized by initializing its devices.
-A Connection is run so data is parsed between devices.
-On Connection implementations:
+A Connector is made by associating 2 or more Devices.
+A Connector is initialized by initializing its devices.
+A Connector is run so data is parsed between devices.
+Connector implementations:
     Pipe: one to one connection for Devices.
     Router: one to many connection for Devices.
     Chain: a serial connection of an arbitrary number of Pipes.
+
+TODO: All of this could be replaced with the io package.
 */
 
 // Represents a connection between MIDI devices.
-type Connection interface {
-	Run()
+type Connector interface { // TODO(aoeu): Rename to Connectner or rename Connect()
+	Connect()
 }
 
 // A Pipe transmits MIDI data from a device's MIDI output to another device's MIDI input.
-// Implements Connection, one to one.
+// Implements Connector, one to one.
 type Pipe struct {
 	From Device
 	To   Device
@@ -56,33 +58,23 @@ func (p Pipe) Stop() (err error) {
 	return
 }
 
-// TODO: Should the Run method be named "Start" instead? Think in context of the `go` keyword.
+// TODO: Should the Connect method be named "Start" instead? Think in context of the `go` keyword.
 // Begins transmission of MIDI data between the connected MIDI devices.
-func (p Pipe) Run() {
+func (p Pipe) Connect() {
 	input := p.From.OutPort()
 	output := p.To.InPort()
 	if debug {
-		fmt.Println("Pipe Run()")
+		fmt.Println("Pipe Connect()")
 	}
 	go p.From.Run()
 	go p.To.Run()
 	for {
 		select {
-		case noteOn, ok := <-input.NoteOns():
-			if !ok {
+		case e, ok := <-input.Events():
+			if !ok { // TODO(aoeu): What is this check for?
 				return
 			}
-			output.NoteOns() <- noteOn
-		case noteOff, ok := <-input.NoteOffs():
-			if !ok {
-				return
-			}
-			output.NoteOffs() <- noteOff
-		case cc, ok := <-input.ControlChanges():
-			if !ok {
-				return
-			}
-			output.ControlChanges() <- cc
+			output.Events() <- e
 		case <-p.stop:
 			return
 		}
@@ -90,7 +82,7 @@ func (p Pipe) Run() {
 }
 
 // A Router transmits MIDI data from one MIDI device to many MIDI devices.
-// Implements Connection, one to many.
+// Implements Connector, one to many.
 type Router struct {
 	From Device
 	To   []Device
@@ -130,38 +122,20 @@ func (r Router) Stop() (err error) {
 }
 
 // Begins transmission of MIDI data between the connected MIDI devices.
-func (r Router) Run() {
+func (r Router) Connect() {
 	go r.From.Run()
 	for _, to := range r.To {
 		go to.Run()
 	}
 	for {
 		select {
-		case noteOn, ok := <-r.From.OutPort().NoteOns():
+		case e, ok := <-r.From.OutPort().Events():
 			if !ok {
 				return
 			}
 			go func() {
 				for _, to := range r.To {
-					to.InPort().NoteOns() <- noteOn
-				}
-			}()
-		case noteOff, ok := <-r.From.OutPort().NoteOffs():
-			if !ok {
-				return
-			}
-			go func() {
-				for _, to := range r.To {
-					to.InPort().NoteOffs() <- noteOff
-				}
-			}()
-		case cc, ok := <-r.From.OutPort().ControlChanges():
-			if !ok {
-				return
-			}
-			go func() {
-				for _, to := range r.To {
-					to.InPort().ControlChanges() <- cc
+					to.InPort().Events() <- e
 				}
 			}()
 		case <-r.stop:
@@ -171,7 +145,7 @@ func (r Router) Run() {
 }
 
 // A Funnel merges MIDI data from many MIDI devices and transmits the data to one MIDI device.
-// Implements Connection, many to one.
+// Implements Connector, many to one.
 type Funnel struct {
 	From []Device
 	To   Device
@@ -214,9 +188,9 @@ func (f Funnel) Stop() (err error) {
 }
 
 // Begins transmission of MIDI data between the connected MIDI devices.
-func (f Funnel) Run() {
+func (f Funnel) Connect() {
 	if debug {
-		fmt.Println("Funnel Run()")
+		fmt.Println("Funnel Connect()")
 	}
 	go f.To.Run()
 	for i := 0; i < len(f.From); i++ { // Perplexing bug: range doesn't work here.
@@ -225,12 +199,8 @@ func (f Funnel) Run() {
 		go func() {
 			for {
 				select {
-				case noteOn := <-from.OutPort().NoteOns():
-					f.To.InPort().NoteOns() <- noteOn
-				case noteOff := <-from.OutPort().NoteOffs():
-					f.To.InPort().NoteOffs() <- noteOff
-				case cc := <-from.OutPort().ControlChanges():
-					f.To.InPort().ControlChanges() <- cc
+				case e := <-from.OutPort().Events():
+					f.To.InPort().Events() <- e
 				case <-f.stop:
 					f.stop <- true // Send stop again for the next goroutine.
 					return
@@ -241,7 +211,7 @@ func (f Funnel) Run() {
 }
 
 // A Chain connects a series of MIDI devices (like creating many, serially chained pipes).
-// Implements Connection, serially chained pipes.
+// Implements Connector, serially chained pipes.
 type Chain struct {
 	Devices []Device
 	pipes   []Pipe
@@ -270,8 +240,8 @@ func (c *Chain) Stop() (err error) {
 }
 
 // Begins transmission of MIDI data between the connected MIDI devices.
-func (c Chain) Run() {
+func (c Chain) Connect() {
 	for _, pipe := range c.pipes {
-		go pipe.Run()
+		go pipe.Connect()
 	}
 }

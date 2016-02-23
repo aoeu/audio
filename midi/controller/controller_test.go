@@ -1,7 +1,7 @@
 package controller
 
 import (
-	"audio/midi"
+	"github.com/aoeu/audio/midi"
 	"fmt"
 	"time"
 )
