@@ -24,7 +24,6 @@ type Port interface {
 	Close() error
 	IsOpen() bool
 	Run()
-	Events() chan Event
 }
 
 func makePortMidiError(errNum C.PmError) error {
@@ -62,21 +61,24 @@ func (t FakePort) Run() {
 	// Do nothing, Run is handled by the Transposer.
 }
 
-func (t FakePort) Events() chan Event {
-	return t.events
-}
-
 // Implements Port, abstracting a system MIDI stream as a port.
 type SystemPort struct {
-	isOpen      bool
-	IsInputPort bool
-	id          int
-	stream      unsafe.Pointer
-	events      chan Event
-	stop        chan bool
+	isOpen bool
+	id     int
+	stream unsafe.Pointer
+	events chan Event
+	stop   chan bool
 }
 
-func (s *SystemPort) Open() error {
+type SystemInPort struct {
+	SystemPort
+}
+
+type SystemOutPort struct {
+	SystemPort
+}
+
+func (s *SystemOutPort) Open() error {
 	if s.isOpen && s.stream == nil {
 		return errors.New("Underlying portmidi port is already opened, " +
 			"but stream is not connected to this SystemPort.")
@@ -84,16 +86,26 @@ func (s *SystemPort) Open() error {
 	if s.id == -1 || s.isOpen { // Fake port or opened already, ignore.
 		return nil
 	}
-	var errNum C.PmError
-	if s.IsInputPort {
-		// The input / output naming LOOKS backwards, but we're opening a
-		// portmidi "output stream" for input Ports and vice versa.
-		errNum = C.Pm_OpenOutput(&(s.stream), C.PmDeviceID(s.id),
-			nil, C.int32_t(512), nil, nil, 0)
-	} else {
-		errNum = C.Pm_OpenInput(&(s.stream), C.PmDeviceID(s.id),
-			nil, C.int32_t(512), nil, nil)
+	errNum := C.Pm_OpenInput(&(s.stream), C.PmDeviceID(s.id),
+		nil, C.int32_t(512), nil, nil)
+
+	if errNum == 0 {
+		s.isOpen = true
 	}
+	return makePortMidiError(errNum)
+}
+
+func (s *SystemInPort) Open() error {
+	if s.isOpen && s.stream == nil {
+		return errors.New("Underlying portmidi port is already opened, " +
+			"but stream is not connected to this SystemPort.")
+	}
+	if s.id == -1 || s.isOpen { // Fake port or opened already, ignore.
+		return nil
+	}
+	// The input / output naming LOOKS backwards, but we're opening a
+	// portmidi "output stream" for input Ports and vice versa.
+	errNum := C.Pm_OpenOutput(&(s.stream), C.PmDeviceID(s.id), nil, C.int32_t(512), nil, nil, 0)
 	if errNum == 0 {
 		s.isOpen = true
 	}
@@ -115,28 +127,15 @@ func (s SystemPort) IsOpen() bool {
 	return s.isOpen
 }
 
-func (s SystemPort) Run() {
-	if debug {
-		fmt.Println("SystemPort", s.id, "Run()")
-	}
-	if s.IsOpen() {
-		if s.IsInputPort {
-			s.RunInPort()
-		} else {
-			s.RunOutPort()
-		}
-	}
-}
-
 // TODO: Event should be an interface.
-func (s SystemPort) RunInPort() {
+func (s SystemInPort) Run() {
 	if debug {
-		fmt.Println("SystemPort", s.id, "RunInPort()")
+		fmt.Println("SystemInPort", s.id, "RunInPort()")
 	}
 	// A device's input port receives data - write to the port.
 	for {
 		select {
-		case e := <-s.Events():
+		case e := <-s.events:
 			s.writeEvent(e)
 		case <-s.stop:
 			return
@@ -144,9 +143,9 @@ func (s SystemPort) RunInPort() {
 	}
 }
 
-func (s SystemPort) RunOutPort() {
+func (s SystemOutPort) Run() {
 	if debug {
-		fmt.Println("SystemPort", s.id, "RunOutputPort()")
+		fmt.Println("SystemOutPort", s.id, "RunOutputPort()")
 	}
 	// A device's output port sends data to something else - read from the port.
 	for {
@@ -190,20 +189,12 @@ func (s SystemPort) RunOutPort() {
 	}
 }
 
-func (s SystemPort) Events() chan Event {
-	return s.events
-}
-
-func (s SystemPort) poll() (bool, error) {
-	if s.IsInputPort == true {
-		return false, errors.New("Can't poll from an input port, " +
-			"only output ports.")
-	}
+func (s SystemOutPort) poll() (bool, error) {
 	if s.stream == nil {
-		return false, errors.New("No input stream set on this SystemPort.")
+		return false, errors.New("No input stream set.")
 	}
 	if s.IsOpen() == false {
-		return false, errors.New("SystemPort is not open.")
+		return false, errors.New("Port is not open.")
 	}
 	dataAvailable, err := C.Pm_Poll(s.stream)
 	if err != nil {
@@ -216,10 +207,7 @@ func (s SystemPort) poll() (bool, error) {
 }
 
 // TODO: Fulfill io.Reader and io.Writer interfaces
-func (s SystemPort) readEvent() (Message, error) {
-	if s.IsInputPort {
-		return Message{}, errors.New("Can only write, not read from input SystemPort.")
-	}
+func (s SystemOutPort) readEvent() (Message, error) {
 	var buffer C.PmEvent
 	// Only read one event at a time.
 	eventsRead := int(C.Pm_Read(s.stream, &buffer, C.int32_t(1)))
@@ -234,7 +222,7 @@ func (s SystemPort) readEvent() (Message, error) {
 	return m, nil
 }
 
-func (s *SystemPort) writeEvent(event Event) error {
+func (s *SystemInPort) writeEvent(event Event) error {
 	message := event.ToRawMessage()
 	if debug {
 		fmt.Printf("%b\n", message)
@@ -249,9 +237,6 @@ func (s *SystemPort) writeEvent(event Event) error {
 // broadcast many disparate types of messages to hardware where the order of
 // message arrival matters greatly. It exists to handle an edge case on one
 // piece of hardware and its peculiar internal protocols.
-func (s *SystemPort) WriteRawEvent(m Message) error {
-	if !s.IsInputPort {
-		return nil
-	}
+func (s *SystemInPort) WriteRawEvent(m Message) error {
 	return s.writeEvent(m) // TODO(aoeu): Assert this works without bit bashing.
 }

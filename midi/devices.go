@@ -93,8 +93,8 @@ func (t ThruDevice) Run() {
 
 // Represents a software or hardware MIDI device on the system.
 type SystemDevice struct { // Implements Device
-	in  *SystemPort
-	out *SystemPort
+	in  *SystemInPort
+	out *SystemOutPort
 	Wires
 	Name string
 }
@@ -153,27 +153,23 @@ func getSystemDevices() (inputs, outputs []SystemDevice) {
 		if info.opened > 0 {
 			isOpen = true
 		}
-		port := &SystemPort{isOpen: isOpen,
-			id:          i,
-			IsInputPort: isInputPort,
-			stop:        make(chan bool, 1),
-			events:      make(chan Event),
+		device := SystemDevice{
+			Name: name,
 		}
-		device := SystemDevice{Name: name}
-
-		if isInputPort {
-			device.in = port
-			device.Wires.In = port.events
-			if device.out == nil {
-				device.out = &SystemPort{isOpen: false, id: -1}
-			}
+		p := SystemPort{
+			isOpen: isOpen,
+			id:     i,
+			stop:   make(chan bool, 1),
+			events: make(chan Event),
+		}
+		switch {
+		case isInputPort:
+			device.in = &SystemInPort{p}
+			device.Wires.In = device.in.events // TODO(aoeu): Should device.Wires.In be device.out.events?
 			inputs = append(inputs, device)
-		} else if isOutputPort {
-			device.out = port
-			device.Wires.Out = port.events
-			if device.in == nil {
-				device.in = &SystemPort{isOpen: false, id: -1}
-			}
+		case isOutputPort:
+			device.out = &SystemOutPort{p}
+			device.Wires.Out = device.out.events
 			outputs = append(outputs, device)
 		}
 	}
