@@ -183,6 +183,8 @@ func (s SystemPort) RunOutPort() {
 					name = "Unknown"
 				}
 				s.events <- ControlChange{m.Channel, m.Data1, m.Data2, name}
+			default:
+				s.events <- m
 			}
 		}
 	}

@@ -164,13 +164,16 @@ func getSystemDevices() (inputs, outputs []SystemDevice) {
 		if isInputPort {
 			device.in = port
 			device.Wires.In = port.events
-			device.out = &SystemPort{isOpen: false, id: -1}
+			if device.out == nil {
+				device.out = &SystemPort{isOpen: false, id: -1}
+			}
 			inputs = append(inputs, device)
 		} else if isOutputPort {
 			device.out = port
 			device.Wires.Out = port.events
-			fmt.Printf("b %+v : %p\n", device.Wires.Out, device.Wires.Out)
-			device.in = &SystemPort{isOpen: false, id: -1}
+			if device.in == nil {
+				device.in = &SystemPort{isOpen: false, id: -1}
+			}
 			outputs = append(outputs, device)
 		}
 	}
@@ -200,7 +203,9 @@ func GetDevices() (SystemDevices, error) {
 		for _, outDev := range outputs {
 			if inDev.Name == outDev.Name {
 				inDev.out = outDev.out
+				inDev.Wires.Out = outDev.Wires.Out
 				outDev.in = inDev.in
+				outDev.Wires.In = outDev.Wires.In
 				break
 			}
 		}
