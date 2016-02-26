@@ -19,10 +19,21 @@ import "fmt"
 
 // Generic device for any software or hardware capable of sending and receiving MIDI.
 type Device struct {
-	in Port 
+	in  Port
 	out Port
-	In chan Event  // MIDI Messages inbound to the device are received from the In channel.
+	*Wires
+}
+
+type Wires struct {
+	In  chan Event // MIDI Messages inbound to the device are received from the In channel.
 	Out chan Event // MIDI Messages outbound from the device are received from the Out channel.
+}
+
+func NewWires() *Wires {
+	return &Wires{
+		In:  make(chan Event),
+		Out: make(chan Event),
+	}
 }
 
 type Opener interface {
@@ -39,14 +50,20 @@ type Runner interface {
 
 // Implements Device, used to route MIDI data.
 type ThruDevice struct {
-	in  *FakePort
-	out *FakePort
-	stop    chan bool
+	in   *FakePort
+	out  *FakePort
+	stop chan bool
+	*Wires
 }
 
 // Creates a new thru device.
 func NewThruDevice() *ThruDevice {
-	return &ThruDevice{&FakePort{}, &FakePort{}, make(chan bool, 1)}
+	return &ThruDevice{
+		in:    &FakePort{},
+		out:   &FakePort{},
+		stop:  make(chan bool, 1),
+		Wires: NewWires(),
+	}
 }
 
 // Opens a thru device for MIDI streaming.
@@ -78,7 +95,8 @@ func (t ThruDevice) Run() {
 type SystemDevice struct { // Implements Device
 	in  *SystemPort
 	out *SystemPort
-	Name    string
+	Wires
+	Name string
 }
 
 // Opens the device for streaming MIDI data.
@@ -135,15 +153,23 @@ func getSystemDevices() (inputs, outputs []SystemDevice) {
 		if info.opened > 0 {
 			isOpen = true
 		}
-		port := &SystemPort{isOpen: isOpen, id: i, IsInputPort: isInputPort}
+		port := &SystemPort{isOpen: isOpen,
+			id:          i,
+			IsInputPort: isInputPort,
+			stop:        make(chan bool, 1),
+			events:      make(chan Event),
+		}
 		device := SystemDevice{Name: name}
 
 		if isInputPort {
 			device.in = port
+			device.Wires.In = port.events
 			device.out = &SystemPort{isOpen: false, id: -1}
 			inputs = append(inputs, device)
 		} else if isOutputPort {
 			device.out = port
+			device.Wires.Out = port.events
+			fmt.Printf("b %+v : %p\n", device.Wires.Out, device.Wires.Out)
 			device.in = &SystemPort{isOpen: false, id: -1}
 			outputs = append(outputs, device)
 		}
@@ -191,9 +217,10 @@ func GetDevices() (SystemDevices, error) {
 
 // Implements Device
 type Transposer struct {
-	NoteMap    map[int]int // TODO(aoeu): NoteMap isn't generalized enough of a name.
-	in     *FakePort
-	out    *FakePort
+	NoteMap map[int]int // TODO(aoeu): NoteMap isn't generalized enough of a name.
+	in      *FakePort
+	out     *FakePort
+	*Wires
 	Transpose  Transposition // TODO(aoeu): What's a better name for a function?
 	ReverseMap map[int]int
 }
@@ -201,7 +228,7 @@ type Transposer struct {
 type Transposition func(Transposer)
 
 func NewTransposer(noteMap map[int]int, transposeFunc Transposition) (t *Transposer) {
-	t = &Transposer{NoteMap: noteMap}
+	t = &Transposer{NoteMap: noteMap, Wires: NewWires()}
 	t.in = &FakePort{}
 	t.out = &FakePort{}
 	if transposeFunc == nil {
@@ -233,8 +260,6 @@ func NewTransposer(noteMap map[int]int, transposeFunc Transposition) (t *Transpo
 	}
 	return
 }
-
-
 
 func (t *Transposer) Open() error {
 	if debug {

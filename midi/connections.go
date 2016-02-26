@@ -3,7 +3,8 @@ package midi
 // #cgo LDFLAGS: -lportmidi
 // #include <portmidi.h>
 import "C"
-import "fmt"
+
+//import "fmt"
 
 /*
 A Connector is made by associating 2 or more Devices.
@@ -17,8 +18,9 @@ Connector implementations:
 TODO: All of this could be replaced with the io package.
 */
 
+/*
 // Represents a connection between MIDI devices.
-type Connector interface { // TODO(aoeu): Rename to Connectner or rename Connect()
+type Connector interface {
 	Connect()
 }
 
@@ -33,7 +35,7 @@ type Pipe struct {
 // Creates a new Pipe, opening the devices sent as parameters.
 func NewPipe(from, to Device) (pipe Pipe, err error) {
 	pipe = Pipe{from, to, make(chan bool, 1)}
-	err = pipe.From.(Opener).Open()
+	err = pipe.From.Open()
 	if err != nil {
 		return Pipe{}, err
 	}
@@ -62,7 +64,7 @@ func (p Pipe) Stop() (err error) {
 // Begins transmission of MIDI data between the connected MIDI devices.
 func (p Pipe) Connect() {
 	input := p.From.OutPort()
-	output := p.To.InPort()
+	output := p.To.In
 	if debug {
 		fmt.Println("Pipe Connect()")
 	}
@@ -135,7 +137,7 @@ func (r Router) Connect() {
 			}
 			go func() {
 				for _, to := range r.To {
-					to.InPort().Events() <- e
+					to.In <- e
 				}
 			}()
 		case <-r.stop:
@@ -200,7 +202,7 @@ func (f Funnel) Connect() {
 			for {
 				select {
 				case e := <-from.OutPort().Events():
-					f.To.InPort().Events() <- e
+					f.To.In <- e
 				case <-f.stop:
 					f.stop <- true // Send stop again for the next goroutine.
 					return
@@ -245,3 +247,5 @@ func (c Chain) Connect() {
 		go pipe.Connect()
 	}
 }
+
+*/

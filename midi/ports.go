@@ -96,8 +96,6 @@ func (s *SystemPort) Open() error {
 	}
 	if errNum == 0 {
 		s.isOpen = true
-		s.stop = make(chan bool, 1)
-		s.events = make(chan Event, BufferSize)
 	}
 	return makePortMidiError(errNum)
 }
@@ -131,8 +129,6 @@ func (s SystemPort) Run() {
 }
 
 // TODO: Event should be an interface.
-// TODO: Rename InPort to InputPort
-// TODO: Rename OutPort to OutputPort
 func (s SystemPort) RunInPort() {
 	if debug {
 		fmt.Println("SystemPort", s.id, "RunInPort()")
@@ -175,16 +171,18 @@ func (s SystemPort) RunOutPort() {
 			}
 			switch m.Command {
 			case NOTE_ON:
-				s.Events() <- NoteOn{m.Channel, m.Data1, m.Data2}
+				fmt.Println("note on")
+				s.events <- NoteOn{m.Channel, m.Data1, m.Data2}
+				fmt.Println("sent note on")
 			case NOTE_OFF:
 				// A NoteOn with velocity 0 (Data2) is arguably a Note Off.
-				s.Events() <- NoteOff{m.Channel, m.Data1, 0}
+				s.events <- NoteOff{m.Channel, m.Data1, 0}
 			case CONTROL_CHANGE:
 				name, ok := ControlChangeNames[m.Data1]
 				if !ok {
 					name = "Unknown"
 				}
-				s.Events() <- ControlChange{m.Channel, m.Data1, m.Data2, name}
+				s.events <- ControlChange{m.Channel, m.Data1, m.Data2, name}
 			}
 		}
 	}

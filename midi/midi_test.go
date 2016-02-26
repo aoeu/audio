@@ -21,8 +21,8 @@ func TestPipe(t *testing.T) {
 	go pipe.Connect()
 	expected := NoteOn{0, 64, 127}
 	// Spoof a MIDI note coming into the device.
-	pipe.From.OutPort().Events() <- expected
-	actual := <-pipe.To.OutPort().Events()
+	pipe.From.Out <- expected
+	actual := <-pipe.To.Out
 	if expected != actual {
 		t.Errorf("Received %q from pipe instead of %q", actual, expected)
 	}
@@ -41,8 +41,8 @@ func testChain(t *testing.T) {
 	go chain.Connect()
 
 	expected := NoteOn{0, 64, 127}
-	chain.Devices[0].OutPort().Events() <- expected
-	actual := <-chain.Devices[2].OutPort().Events()
+	chain.Devices[0].Out <- expected
+	actual := <-chain.Devices[2].Out
 
 	if expected != actual {
 		t.Errorf("Received %q from chain instead of %q", actual, expected)
@@ -59,9 +59,9 @@ func TestRouter(t *testing.T) {
 	router, _ := NewRouter(iac1, iac2, iac3)
 	go router.Connect()
 	expected := NoteOn{0, 64, 127}
-	router.From.OutPort().Events() <- expected
-	actual1 := <-router.To[0].OutPort().Events()
-	actual2 := <-router.To[1].OutPort().Events()
+	router.From.Out <- expected
+	actual1 := <-router.To[0].Out
+	actual2 := <-router.To[1].Out
 	if expected != actual1 || expected != actual2 {
 		t.Errorf("Recived %q and %q from router instead of %q",
 			actual1, actual2, expected)
@@ -79,15 +79,15 @@ func testFunnel(t *testing.T) {
 	funnel, _ := NewFunnel(iac1, iac2, iac3)
 	go funnel.Connect()
 	expected := NoteOn{0, 64, 127}
-	funnel.From[1].OutPort().Events() <- expected
-	actual := <-funnel.To.OutPort().Events()
+	funnel.From[1].Out <- expected
+	actual := <-funnel.To.Out
 	if expected != actual {
 		t.Errorf("Received %q from funnel instead of %q",
 			actual, expected)
 	}
 	expected = NoteOn{0, 95, 64}
-	funnel.From[0].OutPort().Events() <- expected
-	actual = <-funnel.To.OutPort().Events()
+	funnel.From[0].Out <- expected
+	actual = <-funnel.To.Out
 	if expected != actual {
 		t.Errorf("Received %q from funnel instead of %q",
 			actual, expected)
@@ -110,8 +110,8 @@ func TestThruDevice(t *testing.T) {
 	thru.Open()
 	go thru.Run()
 	expected := NoteOn{0, 64, 127}
-	thru.InPort().Events() <- expected
-	actual := <-thru.OutPort().Events()
+	thru.In <- expected
+	actual := <-thru.Out
 	if expected != actual {
 		t.Errorf("Received %q from ThruDevice instead of %q", actual, expected)
 	}
@@ -174,17 +174,17 @@ func ExampleChannelTransposer() {
 		func(t Transposer) {
 			for {
 				select {
-				case note := <-t.InPort().Events():
+				case note := <-t.In:
 					if key, ok := t.NoteMap[note.Channel]; ok {
 						note.Channel = 0
 						note.Key = key
-						t.OutPort().Events() <- note
+						t.Out <- note
 					}
-				case note := <-t.InPort().Events():
+				case note := <-t.In:
 					if key, ok := t.NoteMap[note.Channel]; ok {
 						note.Channel = 0
 						note.Key = key
-						t.OutPort().Events() <- note
+						t.Out <- note
 					}
 				}
 			}

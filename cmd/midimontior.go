@@ -21,28 +21,31 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	d, ok := devices[*deviceName]
+	device, ok := devices[*deviceName]
 	if !ok {
-		d = devices[promptUser()]
+		device = devices[promptUser()]
 	}
 
-	if err := d.Open(); err != nil {
+	if err := device.Open(); err != nil {
 		panic(err)
 	}
 	defer func() {
-		if err := d.Close(); err != nil {
+		if err := device.Close(); err != nil {
 			panic(err)
 		}
 	}()
 
-	go d.Run()
+	go device.Run()
 
 	in := make(chan string, 1)
 	go scanStdin(in)
-
+	fmt.Printf("a %+v : %p\n", device.Wires.Out, device.Wires.Out)
+	fmt.Printf("%+v\n", device)
 	for {
 		select {
-		case msg := <-d.OutPort().Events():
+		case msg := <-device.Out:
+			log.Printf("%+v\n", msg)
+		case msg := <-device.In:
 			log.Printf("%+v\n", msg)
 		case s := <-in:
 			if s == "q" {

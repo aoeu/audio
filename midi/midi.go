@@ -1,7 +1,7 @@
 package midi
 
 const (
-	debug      bool = false
+	debug      bool = true
 	BufferSize int  = 1
 )
 
@@ -29,7 +29,6 @@ func (m Message) ToRawMessage() uint32 {
 		(uint32(status) & 0x0000FF)
 	return message
 }
-
 
 type NoteOn struct {
 	Channel  int
