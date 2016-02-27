@@ -1,7 +1,7 @@
 package main
 
 import (
-	"audio"
+	"github.com/aoeu/audio"
 	"github.com/aoeu/audio/midi"
 	"flag"
 )
@@ -30,7 +30,7 @@ func main() {
 	sampler.Run()
 	check(err)
 	for {
-		e := <-nanopad.OutPort().Events()
+		e := <-nanopad.Out
 		switch e.(type) {
 		case midi.NoteOn:
 			n := e.(midi.NoteOn)
