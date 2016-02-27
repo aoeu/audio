@@ -137,7 +137,9 @@ func (s SystemDevice) Run() {
 	}
 }
 
-func getSystemDevices() (inputs, outputs []SystemDevice) {
+func getSystemDevices() SystemDevices {
+	devices := make(map[string]SystemDevice)
+
 	numDevices := int(C.Pm_CountDevices())
 	for i := 0; i < numDevices; i++ {
 		info := C.Pm_GetDeviceInfo(C.PmDeviceID(i))
@@ -153,8 +155,10 @@ func getSystemDevices() (inputs, outputs []SystemDevice) {
 		if info.opened > 0 {
 			isOpen = true
 		}
-		device := SystemDevice{
-			Name: name,
+		if _, ok := devices[name]; !ok {
+			devices[name] = SystemDevice{
+				Name: name,
+			}
 		}
 		p := SystemPort{
 			isOpen: isOpen,
@@ -162,18 +166,19 @@ func getSystemDevices() (inputs, outputs []SystemDevice) {
 			stop:   make(chan bool, 1),
 			events: make(chan Event),
 		}
+		d := devices[name]
 		switch {
 		case isInputPort:
-			device.in = &SystemInPort{p}
-			device.Wires.In = device.in.events // TODO(aoeu): Should device.Wires.In be device.out.events?
-			inputs = append(inputs, device)
+			d.in = &SystemInPort{p}
+			d.Wires.In = d.in.events
+
 		case isOutputPort:
-			device.out = &SystemOutPort{p}
-			device.Wires.Out = device.out.events
-			outputs = append(outputs, device)
+			d.out = &SystemOutPort{p}
+			d.Wires.Out = d.out.events
 		}
+		devices[name] = d
 	}
-	return inputs, outputs
+	return devices
 }
 
 type SystemDevices map[string]SystemDevice
@@ -191,29 +196,8 @@ func (s *SystemDevices) Shutdown() error {
 }
 
 func GetDevices() (SystemDevices, error) {
-	inputs, outputs := getSystemDevices()
-	devices := make(map[string]SystemDevice, len(inputs)+len(outputs))
-
-	// Pair devices that have both an input and an output, add all to system.
-	for _, inDev := range inputs {
-		for _, outDev := range outputs {
-			if inDev.Name == outDev.Name {
-				inDev.out = outDev.out
-				inDev.Wires.Out = outDev.Wires.Out
-				outDev.in = inDev.in
-				outDev.Wires.In = outDev.Wires.In
-				break
-			}
-		}
-		devices[inDev.Name] = inDev
-	}
-	for _, outDev := range outputs {
-		if _, ok := devices[outDev.Name]; !ok {
-			devices[outDev.Name] = outDev
-		}
-	}
 	errNum := C.Pm_Initialize()
-	return devices, makePortMidiError(errNum)
+	return getSystemDevices(), makePortMidiError(errNum)
 }
 
 // Implements Device
