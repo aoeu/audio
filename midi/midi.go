@@ -11,6 +11,18 @@ const (
 	CONTROL_CHANGE int = 176
 )
 
+type Opener interface {
+	Open() error
+}
+
+type Closer interface {
+	Close() error
+}
+
+type Runner interface {
+	Run()
+}
+
 type Event interface {
 	ToRawMessage() uint32
 }

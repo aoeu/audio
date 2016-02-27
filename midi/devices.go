@@ -36,18 +36,6 @@ func NewWires() *Wires {
 	}
 }
 
-type Opener interface {
-	Open() error
-}
-
-type Closer interface {
-	Close() error
-}
-
-type Runner interface {
-	Run()
-}
-
 // Implements Device, used to route MIDI data.
 type ThruDevice struct {
 	in   *FakePort
@@ -129,10 +117,10 @@ func (s SystemDevice) Run() {
 	if debug {
 		fmt.Println("SystemDevice", s.Name, "Run()")
 	}
-	if s.in.IsOpen() {
+	if s.in.isOpen {
 		go s.in.Run()
 	}
-	if s.out.IsOpen() {
+	if s.out.isOpen {
 		go s.out.Run()
 	}
 }
@@ -160,20 +148,23 @@ func getSystemDevices() SystemDevices {
 				Name: name,
 			}
 		}
-		p := SystemPort{
+		p := Port{
 			isOpen: isOpen,
-			id:     i,
-			stop:   make(chan bool, 1),
 			events: make(chan Event),
+		}
+		sp := SystemPort{
+			Port: p,
+			id:   i,
+			stop: make(chan bool, 1),
 		}
 		d := devices[name]
 		switch {
 		case isInputPort:
-			d.in = &SystemInPort{p}
+			d.in = &SystemInPort{sp}
 			d.Wires.In = d.in.events
 
 		case isOutputPort:
-			d.out = &SystemOutPort{p}
+			d.out = &SystemOutPort{sp}
 			d.Wires.Out = d.out.events
 		}
 		devices[name] = d
