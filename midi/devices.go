@@ -15,7 +15,6 @@ On Device implementations:
 // #cgo LDFLAGS: -lportmidi
 // #include <portmidi.h>
 import "C"
-import "fmt"
 
 // Generic device for any software or hardware capable of sending and receiving MIDI.
 type Device struct {
@@ -89,9 +88,6 @@ type SystemDevice struct { // Implements Device
 
 // Opens the device for streaming MIDI data.
 func (s SystemDevice) Open() error {
-	if debug {
-		fmt.Println("SystemDevice", s.Name, "Open()")
-	}
 	err := s.in.Open()
 	if err != nil {
 		return err
@@ -102,9 +98,6 @@ func (s SystemDevice) Open() error {
 
 // Closes
 func (s SystemDevice) Close() error {
-	if debug {
-		fmt.Println("SystemDevice", s.Name, "Close()")
-	}
 	err := s.in.Close()
 	if err != nil {
 		return err
@@ -114,9 +107,6 @@ func (s SystemDevice) Close() error {
 }
 
 func (s SystemDevice) Run() {
-	if debug {
-		fmt.Println("SystemDevice", s.Name, "Run()")
-	}
 	if s.in.isOpen {
 		go s.in.Run()
 	}
@@ -238,9 +228,6 @@ func NewTransposer(noteMap map[int]int, transposeFunc Transposition) (t *Transpo
 }
 
 func (t *Transposer) Open() error {
-	if debug {
-		fmt.Println("Transposer Open()")
-	}
 	if err := t.in.Open(); err != nil {
 		return err
 	}
@@ -248,9 +235,6 @@ func (t *Transposer) Open() error {
 }
 
 func (t Transposer) Close() (err error) {
-	if debug {
-		fmt.Println("Transposer Close()")
-	}
 	if err := t.in.Close(); err != nil {
 		return err
 	}
@@ -258,8 +242,5 @@ func (t Transposer) Close() (err error) {
 }
 
 func (t Transposer) Run() {
-	if debug {
-		fmt.Println("Transposer Run()")
-	}
 	t.Transpose(t)
 }

@@ -14,7 +14,6 @@ that the OS uses to transfer data to them.
 import "C"
 import (
 	"errors"
-	"fmt"
 	"time"
 	"unsafe"
 )
@@ -91,10 +90,6 @@ func (s *SystemInPort) Open() error {
 }
 
 func (s SystemInPort) Run() {
-	if debug {
-		fmt.Println("SystemInPort", s.id, "RunInPort()")
-	}
-	// A device's input port receives data - write to the port.
 	for {
 		select {
 		case e := <-s.events:
@@ -107,9 +102,6 @@ func (s SystemInPort) Run() {
 
 func (s *SystemInPort) writeEvent(event Event) error {
 	message := event.ToRawMessage()
-	if debug {
-		fmt.Printf("%b\n", message)
-	}
 	buffer := C.PmEvent{C.PmMessage(message), 0}
 	err := C.Pm_Write(s.stream, &buffer, C.int32_t(1))
 	return makePortMidiError(err)
@@ -137,9 +129,6 @@ func (s *SystemOutPort) Open() error {
 }
 
 func (s SystemOutPort) Run() {
-	if debug {
-		fmt.Println("SystemOutPort", s.id, "RunOutputPort()")
-	}
 	// A device's output port sends data to something else - read from the port.
 	for {
 		select {
@@ -157,9 +146,6 @@ func (s SystemOutPort) Run() {
 			m, err := s.readEvent()
 			if err != nil {
 				continue // TODO: This is questionable error handling.
-			}
-			if debug {
-				fmt.Println("SystemPort RunOutputPort()", s.id, m)
 			}
 			switch m.Command {
 			case NOTE_ON:

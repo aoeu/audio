@@ -1,8 +1,7 @@
 package midi
 
 const (
-	debug      bool = false
-	BufferSize int  = 1
+	BufferSize int = 1
 )
 
 const (

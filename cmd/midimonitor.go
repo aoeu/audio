@@ -39,10 +39,7 @@ func main() {
 
 	in := make(chan string, 1)
 	go scanStdin(in)
-	fmt.Printf("a %+v : %p\n", device.Wires.Out, device.Wires.Out)
-	fmt.Printf("%+v\n", device)
 	for {
-		fmt.Println("Waiting for next MIDI message.")
 		select {
 		case msg := <-device.Out:
 			log.Printf("%+v\n", msg)

@@ -48,9 +48,6 @@ func NewPipe(from, to Device) (pipe Pipe, err error) {
 
 // Ends transmission of MIDI data and closes the connected MIDI devices.
 func (p Pipe) Stop() (err error) {
-	if debug {
-		fmt.Println("Pipe Stop()")
-	}
 	p.stop <- true
 	err = p.From.(Closer).Close()
 	if err != nil {
@@ -65,9 +62,6 @@ func (p Pipe) Stop() (err error) {
 func (p Pipe) Connect() {
 	input := p.From.OutPort()
 	output := p.To.In
-	if debug {
-		fmt.Println("Pipe Connect()")
-	}
 	go p.From.(Runner).Run()
 	go p.To.(Runner).Run()
 	for {
@@ -156,9 +150,6 @@ type Funnel struct {
 
 // Creates a new Funnel and open's the MIDI devices sent as parameters.
 func NewFunnel(to Device, from ...Device) (f Funnel, err error) {
-	if debug {
-		fmt.Println("Funnel Open()")
-	}
 	f = Funnel{from, to, make(chan bool, 1)}
 	err = f.To.(Opener).Open()
 	if err != nil {
@@ -191,9 +182,6 @@ func (f Funnel) Stop() (err error) {
 
 // Begins transmission of MIDI data between the connected MIDI devices.
 func (f Funnel) Connect() {
-	if debug {
-		fmt.Println("Funnel Connect()")
-	}
 	go f.To.(Runner).Run()
 	for i := 0; i < len(f.From); i++ { // Perplexing bug: range doesn't work here.
 		from := f.From[i]
