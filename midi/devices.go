@@ -12,9 +12,7 @@ On Device implementations:
         the MIDI data coming through it.
 */
 
-// #cgo LDFLAGS: -lportmidi
-// #include <portmidi.h>
-import "C"
+import "github.com/aoeu/audio/midi/portmidi"
 
 // Generic device for any software or hardware capable of sending and receiving MIDI.
 type Device struct {
@@ -96,13 +94,12 @@ func (s SystemDevice) Open() error {
 	return err
 }
 
-// Closes
 func (s SystemDevice) Close() error {
-	err := s.in.Close()
+	err := s.in.SystemPort.Close()
 	if err != nil {
 		return err
 	}
-	err = s.out.Close()
+	err = s.out.SystemPort.Close()
 	return err
 }
 
@@ -117,47 +114,31 @@ func (s SystemDevice) Run() {
 
 func getSystemDevices() SystemDevices {
 	devices := make(map[string]SystemDevice)
-
-	numDevices := int(C.Pm_CountDevices())
-	for i := 0; i < numDevices; i++ {
-		info := C.Pm_GetDeviceInfo(C.PmDeviceID(i))
-		name := C.GoString(info.name)
-
-		var isInputPort, isOutputPort, isOpen bool
-		if info.output > 0 { // "output" means "output stream" in portmidi-speak.
-			isInputPort = true // An OUTPUT stream is for an INPUT port.
-		}
-		if info.input > 0 { // "input" means "input stream" in portmidi-speak.
-			isOutputPort = true // An INPUT stream is for an OUTPUT port.
-		}
-		if info.opened > 0 {
-			isOpen = true
-		}
-		if _, ok := devices[name]; !ok {
-			devices[name] = SystemDevice{
-				Name: name,
+	for i := 0; i < portmidi.NumStreams(); i++ {
+		streamInfo := portmidi.NewStreamInfo(i)
+		if _, ok := devices[streamInfo.Name]; !ok {
+			devices[streamInfo.Name] = SystemDevice{
+				Name: streamInfo.Name,
 			}
 		}
 		p := Port{
-			isOpen: isOpen,
+			isOpen: streamInfo.IsOpen,
 			events: make(chan Event),
 		}
 		sp := SystemPort{
 			Port: p,
-			id:   i,
 			stop: make(chan bool, 1),
 		}
-		d := devices[name]
+		d := devices[streamInfo.Name]
 		switch {
-		case isInputPort:
-			d.in = &SystemInPort{sp}
+		case streamInfo.IsOutput: // An output stream is for an input port.
+			d.in = &SystemInPort{SystemPort: sp, Output: portmidi.NewOutput(i)}
 			d.Wires.In = d.in.events
-
-		case isOutputPort:
-			d.out = &SystemOutPort{sp}
+		case streamInfo.IsInput: // An input stream is for an output port.
+			d.out = &SystemOutPort{SystemPort: sp, Input: portmidi.NewInput(i)}
 			d.Wires.Out = d.out.events
 		}
-		devices[name] = d
+		devices[streamInfo.Name] = d
 	}
 	return devices
 }
@@ -166,19 +147,17 @@ type SystemDevices map[string]SystemDevice
 
 // This function will cause terrible errors if called. Do not use it.
 func (s *SystemDevices) Shutdown() error {
+	var err error
 	m := map[string]SystemDevice(*s)
 	for _, device := range m {
-		device.in.Close()
-		device.out.Close()
+		err = device.Close()
 	}
-	return nil
-	errNum := C.Pm_Terminate()
-	return makePortMidiError(errNum)
+	err = portmidi.Terminate()
+	return err
 }
 
 func GetDevices() (SystemDevices, error) {
-	errNum := C.Pm_Initialize()
-	return getSystemDevices(), makePortMidiError(errNum)
+	return getSystemDevices(), portmidi.Initialize()
 }
 
 // Implements Device

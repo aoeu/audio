@@ -9,22 +9,11 @@ MIDI in and MIDI out ports of devices, not the file streams
 that the OS uses to transfer data to them.
 */
 
-// #cgo LDFLAGS: -lportmidi
-// #include <portmidi.h>
-import "C"
 import (
-	"errors"
+	"fmt"
+	"github.com/aoeu/audio/midi/portmidi"
 	"time"
-	"unsafe"
 )
-
-func makePortMidiError(errNum C.PmError) error {
-	msg := C.GoString(C.Pm_GetErrorText(errNum))
-	if msg == "" {
-		return nil
-	}
-	return errors.New(msg)
-}
 
 type Port struct {
 	isOpen bool
@@ -49,83 +38,70 @@ type FakePort struct {
 
 func (t FakePort) Run() {}
 
-// Implements Port, abstracting a system MIDI stream as a port.
+// Implements Port, wrappinf a system MIDI byte stream as a port.
 type SystemPort struct {
 	Port
-	id     int
-	stream unsafe.Pointer
-	stop   chan bool
+	id   int
+	stop chan bool
 }
 
 func (s *SystemPort) Close() error {
 	if s.isOpen {
 		s.isOpen = false
 		s.stop <- true
-		errNum := C.Pm_Close(s.stream)
 		close(s.events)
-		return makePortMidiError(errNum)
 	}
 	return nil
 }
 
 type SystemInPort struct {
 	SystemPort
+	*portmidi.Output
+}
+
+func (s *SystemInPort) Close() error {
+	s.SystemPort.Close()
+	return s.Output.Close()
 }
 
 func (s *SystemInPort) Open() error {
-	if s.isOpen && s.stream == nil {
-		return errors.New("Underlying portmidi port is already opened, " +
-			"but stream is not connected to this SystemPort.")
-	}
-	if s.id == -1 || s.isOpen {
+	if s.isOpen {
 		return nil
 	}
-	// The input / output naming LOOKS backwards, but we're opening a
-	// portmidi "output stream" for input Ports and vice versa.
-	errNum := C.Pm_OpenOutput(&(s.stream), C.PmDeviceID(s.id), nil, C.int32_t(512), nil, nil, 0)
-	if errNum == 0 {
+	err := s.Output.Open()
+	if err == nil {
 		s.isOpen = true
 	}
-	return makePortMidiError(errNum)
+	return err
 }
 
 func (s SystemInPort) Run() {
 	for {
 		select {
 		case e := <-s.events:
-			s.writeEvent(e)
+			if err := s.Output.Write(e); err != nil {
+				panic(err)
+			}
 		case <-s.stop:
 			return
 		}
 	}
 }
 
-func (s *SystemInPort) writeEvent(event Event) error {
-	message := event.ToRawMessage()
-	buffer := C.PmEvent{C.PmMessage(message), 0}
-	err := C.Pm_Write(s.stream, &buffer, C.int32_t(1))
-	return makePortMidiError(err)
-}
-
 type SystemOutPort struct {
 	SystemPort
+	*portmidi.Input
 }
 
 func (s *SystemOutPort) Open() error {
-	if s.isOpen && s.stream == nil {
-		return errors.New("Underlying portmidi port is already opened, " +
-			"but stream is not connected to this SystemPort.")
-	}
-	if s.id == -1 || s.isOpen { // Fake port or opened already, ignore.
+	if s.isOpen {
 		return nil
 	}
-	errNum := C.Pm_OpenInput(&(s.stream), C.PmDeviceID(s.id),
-		nil, C.int32_t(512), nil, nil)
-
-	if errNum == 0 {
+	err := s.Input.Open()
+	if err == nil {
 		s.isOpen = true
 	}
-	return makePortMidiError(errNum)
+	return err
 }
 
 func (s SystemOutPort) Run() {
@@ -135,18 +111,15 @@ func (s SystemOutPort) Run() {
 		case <-s.stop:
 			return
 		default:
-			dataAvailable, err := s.poll()
+			dataAvailable, err := s.Input.Poll()
 			if err != nil {
 				panic(err)
 			}
-			if dataAvailable == false {
+			if !dataAvailable {
 				time.Sleep(1 * time.Millisecond)
 				continue
 			}
-			m, err := s.readEvent()
-			if err != nil {
-				continue // TODO: This is questionable error handling.
-			}
+			m := s.Input.Read()
 			switch m.Command {
 			case NOTE_ON:
 				s.events <- NoteOn{m.Channel, m.Data1, m.Data2}
@@ -160,35 +133,8 @@ func (s SystemOutPort) Run() {
 				}
 				s.events <- ControlChange{m.Channel, m.Data1, m.Data2, name}
 			default:
-				s.events <- m
+				fmt.Printf("Unknown message type received and ignored: %+v", m)
 			}
 		}
 	}
-}
-
-func (s SystemOutPort) poll() (dataAvailable bool, err error) {
-	if s.stream == nil {
-		return false, errors.New("No input stream set.")
-	}
-	if !s.isOpen {
-		return false, errors.New("Port is not open.")
-	}
-	d, err := C.Pm_Poll(s.stream)
-	return d > 0, err
-}
-
-// TODO: Fulfill io.Reader and io.Writer interfaces
-func (s SystemOutPort) readEvent() (Message, error) {
-	var buffer C.PmEvent
-	// Only read one event at a time.
-	eventsRead := int(C.Pm_Read(s.stream, &buffer, C.int32_t(1)))
-	m := Message{}
-	if eventsRead > 0 {
-		status := int(buffer.message) & 0xFF
-		m.Channel = int(status & 0x0F)
-		m.Command = int(status & 0xF0)
-		m.Data1 = int((buffer.message >> 8) & 0xFF)
-		m.Data2 = int((buffer.message >> 16) & 0xFF)
-	}
-	return m, nil
 }

@@ -23,7 +23,7 @@ type Runner interface {
 }
 
 type Event interface {
-	ToRawMessage() uint32
+	Uint32() uint32
 }
 
 type Message struct {
@@ -33,7 +33,7 @@ type Message struct {
 	Data2   int
 }
 
-func (m Message) ToRawMessage() uint32 {
+func (m Message) Uint32() uint32 {
 	status := m.Command + m.Channel
 	message := ((uint32(m.Data2) << 16) & 0xFF0000) |
 		((uint32(m.Data1) << 8) & 0x00FF00) |
@@ -47,14 +47,14 @@ type NoteOn struct {
 	Velocity int
 }
 
-func (n NoteOn) ToRawMessage() uint32 {
-	return Message{n.Channel, NOTE_ON, n.Key, n.Velocity}.ToRawMessage()
+func (n NoteOn) Uint32() uint32 {
+	return Message{n.Channel, NOTE_ON, n.Key, n.Velocity}.Uint32()
 }
 
 type NoteOff NoteOn
 
-func (n NoteOff) ToRawMessage() uint32 {
-	return Message{n.Channel, NOTE_OFF, n.Key, n.Velocity}.ToRawMessage()
+func (n NoteOff) Uint32() uint32 {
+	return Message{n.Channel, NOTE_OFF, n.Key, n.Velocity}.Uint32()
 }
 
 type ControlChange struct {
@@ -64,9 +64,9 @@ type ControlChange struct {
 	Name    string // What the ID is used for as per the General MIDI spec.
 }
 
-func (c ControlChange) ToRawMessage() uint32 {
+func (c ControlChange) Uint32() uint32 {
 	e := Message{c.Channel, CONTROL_CHANGE, c.ID, c.Value}
-	return e.ToRawMessage()
+	return e.Uint32()
 }
 
 // General MIDI names for various ControlChange IDs.
