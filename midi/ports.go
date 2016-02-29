@@ -18,17 +18,28 @@ import (
 type Port struct {
 	isOpen   bool
 	messages chan Message
+	disconnect chan bool
+}
+
+func NewPort(isOpen bool) *Port {
+	return &Port{
+		isOpen : isOpen,
+		messages : make(chan Message, BufferSize),
+		disconnect : make(chan bool, 1),
+	}
 }
 
 func (p *Port) Open() error {
 	p.isOpen = true
-	p.messages = make(chan Message, BufferSize)
 	return nil
 }
 
 func (p *Port) Close() error {
-	close(p.messages)
-	p.isOpen = false
+	if p.isOpen {
+		p.isOpen = false
+		p.disconnect <- true
+		close(p.messages)
+	}
 	return nil
 }
 
@@ -37,7 +48,6 @@ func (p *Port) Connect() {}
 type SystemPort struct {
 	Port
 	id   int
-	disconnect chan bool
 }
 
 func (s *SystemPort) Close() error {

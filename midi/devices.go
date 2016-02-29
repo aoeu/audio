@@ -27,8 +27,8 @@ func NewWires() *Wires {
 }
 
 type Device struct {
-	in  Port
-	out Port
+	in *Port
+	out *Port
 	*Wires
 }
 
@@ -128,13 +128,8 @@ func getSystemDevices() SystemDevices {
 				Name: streamInfo.Name,
 			}
 		}
-		p := Port{
-			isOpen:   streamInfo.IsOpen,
-			messages: make(chan Message),
-		}
 		sp := SystemPort{
-			Port: p,
-			disconnect: make(chan bool, 1),
+			Port: *NewPort(streamInfo.IsOpen),
 		}
 		d := devices[streamInfo.Name]
 		switch {
