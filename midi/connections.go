@@ -227,4 +227,3 @@ func (c Chain) Connect() {
 		go pipe.Connect()
 	}
 }
-

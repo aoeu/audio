@@ -14,7 +14,6 @@ On Device implementations:
 
 import "github.com/aoeu/audio/midi/portmidi"
 
-
 type Wires struct {
 	In  chan Message // MIDI Messages inbound to the device are received from the In channel.
 	Out chan Message // MIDI Messages outbound from the device are received from the Out channel.
@@ -58,8 +57,8 @@ func (s Device) Connect() {
 
 // Implements Device, used to route MIDI data.
 type ThruDevice struct {
-	in   *FakePort
-	out  *FakePort
+	in   *Port
+	out  *Port
 	stop chan bool
 	*Wires
 }
@@ -67,13 +66,12 @@ type ThruDevice struct {
 // Creates a new thru device.
 func NewThruDevice() *ThruDevice {
 	return &ThruDevice{
-		in:    &FakePort{},
-		out:   &FakePort{},
+		in:    &Port{},
+		out:   &Port{},
 		stop:  make(chan bool, 1),
 		Wires: NewWires(),
 	}
 }
-
 
 // Routes data through the thru device.
 func (t ThruDevice) Connect() {
@@ -172,8 +170,8 @@ func GetDevices() (SystemDevices, error) {
 // Implements Device
 type Transposer struct {
 	NoteMap map[int]int // TODO(aoeu): NoteMap isn't generalized enough of a name.
-	in      *FakePort
-	out     *FakePort
+	in      *Port
+	out     *Port
 	*Wires
 	Transpose  Transposition // TODO(aoeu): What's a better name for a function?
 	ReverseMap map[int]int
@@ -183,8 +181,8 @@ type Transposition func(Transposer)
 
 func NewTransposer(noteMap map[int]int, transposeFunc Transposition) (t *Transposer) {
 	t = &Transposer{NoteMap: noteMap, Wires: NewWires()}
-	t.in = &FakePort{}
-	t.out = &FakePort{}
+	t.in = &Port{}
+	t.out = &Port{}
 	if transposeFunc == nil {
 		transposeFunc = func(t1 Transposer) {
 			for {

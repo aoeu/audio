@@ -32,13 +32,8 @@ func (p *Port) Close() error {
 	return nil
 }
 
-type FakePort struct {
-	Port
-}
-
 func (p *Port) Connect() {}
 
-// Implements Port, wrappinf a system MIDI byte stream as a port.
 type SystemPort struct {
 	Port
 	id   int
@@ -105,7 +100,6 @@ func (s *SystemOutPort) Open() error {
 }
 
 func (s SystemOutPort) Connect() {
-	// A device's output port sends data to something else - read from the port.
 	for {
 		select {
 		case <-s.stop:
