@@ -35,7 +35,7 @@ func main() {
 		}
 	}()
 
-	go device.Run()
+	go device.Connect()
 
 	in := make(chan string, 1)
 	go scanStdin(in)

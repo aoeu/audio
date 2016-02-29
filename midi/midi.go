@@ -18,8 +18,8 @@ type Closer interface {
 	Close() error
 }
 
-type Runner interface {
-	Run()
+type Connecter interface {
+	Connect()
 }
 
 type Uint32er interface {

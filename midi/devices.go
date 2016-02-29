@@ -14,12 +14,6 @@ On Device implementations:
 
 import "github.com/aoeu/audio/midi/portmidi"
 
-// Generic device for any software or hardware capable of sending and receiving MIDI.
-type Device struct {
-	in  Port
-	out Port
-	*Wires
-}
 
 type Wires struct {
 	In  chan Message // MIDI Messages inbound to the device are received from the In channel.
@@ -30,6 +24,35 @@ func NewWires() *Wires {
 	return &Wires{
 		In:  make(chan Message),
 		Out: make(chan Message),
+	}
+}
+
+type Device struct {
+	in  Port
+	out Port
+	*Wires
+}
+
+func (d *Device) Open() error {
+	err := d.in.Open()
+	if err != nil {
+		return err
+	}
+	return d.out.Open()
+}
+
+func (d *Device) Close() (err error) {
+	err = d.in.Close()
+	err = d.out.Close()
+	return err
+}
+
+func (s Device) Connect() {
+	if s.in.isOpen {
+		go s.in.Connect()
+	}
+	if s.out.isOpen {
+		go s.out.Connect()
 	}
 }
 
@@ -51,22 +74,9 @@ func NewThruDevice() *ThruDevice {
 	}
 }
 
-// Opens a thru device for MIDI streaming.
-func (t *ThruDevice) Open() error {
-	t.in.Open()
-	t.out.Open()
-	return nil
-}
-
-// Closes a thru device from MIDI streaming.
-func (t ThruDevice) Close() (err error) {
-	t.in.Close()
-	t.out.Close()
-	return nil
-}
 
 // Routes data through the thru device.
-func (t ThruDevice) Run() {
+func (t ThruDevice) Connect() {
 	for {
 		select {
 		case t.Out <- <-t.In:
@@ -84,14 +94,13 @@ type SystemDevice struct { // Implements Device
 	Name string
 }
 
-// Opens the device for streaming MIDI data.
 func (s SystemDevice) Open() error {
+	// TODO(aoeu): Ramify with Device.Open()
 	err := s.in.Open()
 	if err != nil {
 		return err
 	}
-	err = s.out.Open()
-	return err
+	return s.out.Open()
 }
 
 func (s SystemDevice) Close() error {
@@ -103,12 +112,12 @@ func (s SystemDevice) Close() error {
 	return err
 }
 
-func (s SystemDevice) Run() {
+func (s SystemDevice) Connect() {
 	if s.in.isOpen {
-		go s.in.Run()
+		go s.in.Connect()
 	}
 	if s.out.isOpen {
-		go s.out.Run()
+		go s.out.Connect()
 	}
 }
 
@@ -220,6 +229,6 @@ func (t Transposer) Close() (err error) {
 	return t.out.Close()
 }
 
-func (t Transposer) Run() {
+func (t Transposer) Connect() {
 	t.Transpose(t)
 }

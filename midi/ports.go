@@ -36,7 +36,7 @@ type FakePort struct {
 	Port
 }
 
-func (t FakePort) Run() {}
+func (p *Port) Connect() {}
 
 // Implements Port, wrappinf a system MIDI byte stream as a port.
 type SystemPort struct {
@@ -75,7 +75,7 @@ func (s *SystemInPort) Open() error {
 	return err
 }
 
-func (s SystemInPort) Run() {
+func (s SystemInPort) Connect() {
 	for {
 		select {
 		case m := <-s.messages:
@@ -104,7 +104,7 @@ func (s *SystemOutPort) Open() error {
 	return err
 }
 
-func (s SystemOutPort) Run() {
+func (s SystemOutPort) Connect() {
 	// A device's output port sends data to something else - read from the port.
 	for {
 		select {

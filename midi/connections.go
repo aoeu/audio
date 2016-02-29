@@ -18,12 +18,6 @@ Connector implementations:
 TODO: All of this could be replaced with the io package.
 */
 
-/*
-// Represents a connection between MIDI devices.
-type Connector interface {
-	Connect()
-}
-
 // A Pipe transmits MIDI data from a device's MIDI output to another device's MIDI input.
 // Implements Connector, one to one.
 type Pipe struct {
@@ -39,7 +33,7 @@ func NewPipe(from, to Device) (pipe Pipe, err error) {
 	if err != nil {
 		return Pipe{}, err
 	}
-	err = pipe.To.(Opener).Open()
+	err = pipe.To.Open()
 	if err != nil {
 		return Pipe{}, err
 	}
@@ -49,28 +43,26 @@ func NewPipe(from, to Device) (pipe Pipe, err error) {
 // Ends transmission of MIDI data and closes the connected MIDI devices.
 func (p Pipe) Stop() (err error) {
 	p.stop <- true
-	err = p.From.(Closer).Close()
+	err = p.From.Close()
 	if err != nil {
 		return
 	}
-	err = p.To.(Closer).Close()
+	err = p.To.Close()
 	return
 }
 
 // TODO: Should the Connect method be named "Start" instead? Think in context of the `go` keyword.
 // Begins transmission of MIDI data between the connected MIDI devices.
 func (p Pipe) Connect() {
-	input := p.From.OutPort()
-	output := p.To.In
-	go p.From.(Runner).Run()
-	go p.To.(Runner).Run()
+	go p.From.Connect()
+	go p.To.Connect()
 	for {
 		select {
-		case e, ok := <-input.Events():
+		case e, ok := <-p.From.Out:
 			if !ok { // TODO(aoeu): What is this check for?
 				return
 			}
-			output.Events() <- e
+			p.To.In <- e
 		case <-p.stop:
 			return
 		}
@@ -88,12 +80,12 @@ type Router struct {
 // Creates a new Router and opens MIDI devices sent as parameters.
 func NewRouter(from Device, to ...Device) (r Router, err error) {
 	r = Router{from, to, make(chan bool, 1)}
-	err = r.From.(Opener).Open()
+	err = r.From.Open()
 	if err != nil {
 		return Router{}, err
 	}
 	for _, to := range r.To {
-		err = to.(Opener).Open()
+		err = to.Open()
 		if err != nil {
 			return Router{}, err
 		}
@@ -104,12 +96,12 @@ func NewRouter(from Device, to ...Device) (r Router, err error) {
 // Ends transmission of MIDI data and closes the connected MIDI devices.
 func (r Router) Stop() (err error) {
 	r.stop <- true
-	err = r.From.(Closer).Close()
+	err = r.From.Close()
 	if err != nil {
 		return
 	}
 	for _, to := range r.To {
-		err = to.(Closer).Close()
+		err = to.Close()
 		if err != nil {
 			return
 		}
@@ -119,13 +111,13 @@ func (r Router) Stop() (err error) {
 
 // Begins transmission of MIDI data between the connected MIDI devices.
 func (r Router) Connect() {
-	go r.From.(Runner).Run()
+	go r.From.Connect()
 	for _, to := range r.To {
-		go to.(Runner).Run()
+		go to.Connect()
 	}
 	for {
 		select {
-		case e, ok := <-r.From.OutPort().Events():
+		case e, ok := <-r.From.Out:
 			if !ok {
 				return
 			}
@@ -151,12 +143,12 @@ type Funnel struct {
 // Creates a new Funnel and open's the MIDI devices sent as parameters.
 func NewFunnel(to Device, from ...Device) (f Funnel, err error) {
 	f = Funnel{from, to, make(chan bool, 1)}
-	err = f.To.(Opener).Open()
+	err = f.To.Open()
 	if err != nil {
 		return Funnel{}, err
 	}
 	for _, from := range f.From {
-		err = from.(Opener).Open()
+		err = from.Open()
 		if err != nil {
 			return Funnel{}, err
 		}
@@ -167,12 +159,12 @@ func NewFunnel(to Device, from ...Device) (f Funnel, err error) {
 // Ends transmission of MIDI data and closes the connected MIDI devices.
 func (f Funnel) Stop() (err error) {
 	f.stop <- true
-	err = f.To.(Closer).Close()
+	err = f.To.Close()
 	if err != nil {
 		return
 	}
 	for _, from := range f.From {
-		err = from.(Closer).Close()
+		err = from.Close()
 		if err != nil {
 			return
 		}
@@ -182,14 +174,14 @@ func (f Funnel) Stop() (err error) {
 
 // Begins transmission of MIDI data between the connected MIDI devices.
 func (f Funnel) Connect() {
-	go f.To.(Runner).Run()
+	go f.To.Connect()
 	for i := 0; i < len(f.From); i++ { // Perplexing bug: range doesn't work here.
 		from := f.From[i]
-		go from.(Runner).Run()
+		go from.Connect()
 		go func() {
 			for {
 				select {
-				case e := <-from.OutPort().Events():
+				case e := <-from.Out:
 					f.To.In <- e
 				case <-f.stop:
 					f.stop <- true // Send stop again for the next goroutine.
@@ -236,4 +228,3 @@ func (c Chain) Connect() {
 	}
 }
 
-*/
