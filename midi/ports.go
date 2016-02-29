@@ -37,13 +37,13 @@ func (p *Port) Connect() {}
 type SystemPort struct {
 	Port
 	id   int
-	stop chan bool
+	disconnect chan bool
 }
 
 func (s *SystemPort) Close() error {
 	if s.isOpen {
 		s.isOpen = false
-		s.stop <- true
+		s.disconnect <- true
 		close(s.messages)
 	}
 	return nil
@@ -77,7 +77,7 @@ func (s SystemInPort) Connect() {
 			if err := s.Output.Write(m); err != nil {
 				panic(err)
 			}
-		case <-s.stop:
+		case <-s.disconnect:
 			return
 		}
 	}
@@ -102,7 +102,7 @@ func (s *SystemOutPort) Open() error {
 func (s SystemOutPort) Connect() {
 	for {
 		select {
-		case <-s.stop:
+		case <-s.disconnect:
 			return
 		default:
 			dataAvailable, err := s.Input.Poll()

@@ -23,7 +23,7 @@ TODO: All of this could be replaced with the io package.
 type Pipe struct {
 	From Device
 	To   Device
-	stop chan bool
+	disconnect chan bool
 }
 
 // Creates a new Pipe, opening the devices sent as parameters.
@@ -42,7 +42,7 @@ func NewPipe(from, to Device) (pipe Pipe, err error) {
 
 // Ends transmission of MIDI data and closes the connected MIDI devices.
 func (p Pipe) Stop() (err error) {
-	p.stop <- true
+	p.disconnect <- true
 	err = p.From.Close()
 	if err != nil {
 		return
@@ -63,7 +63,7 @@ func (p Pipe) Connect() {
 				return
 			}
 			p.To.In <- e
-		case <-p.stop:
+		case <-p.disconnect:
 			return
 		}
 	}
@@ -74,7 +74,7 @@ func (p Pipe) Connect() {
 type Router struct {
 	From Device
 	To   []Device
-	stop chan bool
+	disconnect chan bool
 }
 
 // Creates a new Router and opens MIDI devices sent as parameters.
@@ -95,7 +95,7 @@ func NewRouter(from Device, to ...Device) (r Router, err error) {
 
 // Ends transmission of MIDI data and closes the connected MIDI devices.
 func (r Router) Stop() (err error) {
-	r.stop <- true
+	r.disconnect <- true
 	err = r.From.Close()
 	if err != nil {
 		return
@@ -126,7 +126,7 @@ func (r Router) Connect() {
 					to.In <- e
 				}
 			}()
-		case <-r.stop:
+		case <-r.disconnect:
 			return
 		}
 	}
@@ -137,7 +137,7 @@ func (r Router) Connect() {
 type Funnel struct {
 	From []Device
 	To   Device
-	stop chan bool
+	disconnect chan bool
 }
 
 // Creates a new Funnel and open's the MIDI devices sent as parameters.
@@ -158,7 +158,7 @@ func NewFunnel(to Device, from ...Device) (f Funnel, err error) {
 
 // Ends transmission of MIDI data and closes the connected MIDI devices.
 func (f Funnel) Stop() (err error) {
-	f.stop <- true
+	f.disconnect <- true
 	err = f.To.Close()
 	if err != nil {
 		return
@@ -183,8 +183,8 @@ func (f Funnel) Connect() {
 				select {
 				case e := <-from.Out:
 					f.To.In <- e
-				case <-f.stop:
-					f.stop <- true // Send stop again for the next goroutine.
+				case <-f.disconnect:
+					f.disconnect <- true // Send disconnect again for the next goroutine.
 					return
 				}
 			}

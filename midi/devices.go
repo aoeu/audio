@@ -59,7 +59,7 @@ func (s Device) Connect() {
 type ThruDevice struct {
 	in   *Port
 	out  *Port
-	stop chan bool
+	disconnect chan bool
 	*Wires
 }
 
@@ -68,7 +68,7 @@ func NewThruDevice() *ThruDevice {
 	return &ThruDevice{
 		in:    &Port{},
 		out:   &Port{},
-		stop:  make(chan bool, 1),
+		disconnect:  make(chan bool, 1),
 		Wires: NewWires(),
 	}
 }
@@ -78,7 +78,7 @@ func (t ThruDevice) Connect() {
 	for {
 		select {
 		case t.Out <- <-t.In:
-		case <-t.stop:
+		case <-t.disconnect:
 			return
 		}
 	}
@@ -134,7 +134,7 @@ func getSystemDevices() SystemDevices {
 		}
 		sp := SystemPort{
 			Port: p,
-			stop: make(chan bool, 1),
+			disconnect: make(chan bool, 1),
 		}
 		d := devices[streamInfo.Name]
 		switch {
