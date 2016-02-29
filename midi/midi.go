@@ -22,23 +22,39 @@ type Runner interface {
 	Run()
 }
 
-type Event interface {
+type Uint32er interface {
 	Uint32() uint32
 }
 
-type Message struct {
+type Message interface {
+	Uint32er
+}
+
+type message struct {
 	Channel int
 	Command int
 	Data1   int
 	Data2   int
 }
 
-func (m Message) Uint32() uint32 {
+func newMessage(u uint32) *message {
+	if u == 0 {
+		return &message{}
+	}
+	status := int(u) & 0xFF
+	return &message{
+		Channel: int(status & 0x0F),
+		Command: int(status & 0xF0),
+		Data1:   int((u >> 8) & 0xFF),
+		Data2:   int((u >> 16) & 0xFF),
+	}
+}
+
+func (m message) Uint32() uint32 {
 	status := m.Command + m.Channel
-	message := ((uint32(m.Data2) << 16) & 0xFF0000) |
+	return ((uint32(m.Data2) << 16) & 0xFF0000) |
 		((uint32(m.Data1) << 8) & 0x00FF00) |
 		(uint32(status) & 0x0000FF)
-	return message
 }
 
 type NoteOn struct {
@@ -48,13 +64,13 @@ type NoteOn struct {
 }
 
 func (n NoteOn) Uint32() uint32 {
-	return Message{n.Channel, NOTE_ON, n.Key, n.Velocity}.Uint32()
+	return message{n.Channel, NOTE_ON, n.Key, n.Velocity}.Uint32()
 }
 
 type NoteOff NoteOn
 
 func (n NoteOff) Uint32() uint32 {
-	return Message{n.Channel, NOTE_OFF, n.Key, n.Velocity}.Uint32()
+	return message{n.Channel, NOTE_OFF, n.Key, n.Velocity}.Uint32()
 }
 
 type ControlChange struct {
@@ -65,8 +81,7 @@ type ControlChange struct {
 }
 
 func (c ControlChange) Uint32() uint32 {
-	e := Message{c.Channel, CONTROL_CHANGE, c.ID, c.Value}
-	return e.Uint32()
+	return message{c.Channel, CONTROL_CHANGE, c.ID, c.Value}.Uint32()
 }
 
 // General MIDI names for various ControlChange IDs.

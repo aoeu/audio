@@ -33,6 +33,10 @@ func NumStreams() int {
 	return int(C.Pm_CountDevices())
 }
 
+type Uint32er interface {
+	Uint32() uint32
+}
+
 type StreamInfo struct {
 	IsInput  bool
 	IsOutput bool
@@ -48,25 +52,6 @@ func NewStreamInfo(deviceID int) *StreamInfo {
 		IsOpen:   i.opened > 0,
 		Name:     C.GoString(i.name),
 	}
-}
-
-type Message struct {
-	Channel int
-	Command int
-	Data1   int
-	Data2   int
-}
-
-type Uint32er interface {
-	Uint32() uint32
-}
-
-func (m Message) Uint32() uint32 {
-	status := m.Command + m.Channel
-	message := ((uint32(m.Data2) << 16) & 0xFF0000) |
-		((uint32(m.Data1) << 8) & 0x00FF00) |
-		(uint32(status) & 0x0000FF)
-	return message
 }
 
 type Output struct {
@@ -115,16 +100,10 @@ func (i *Input) Poll() (dataAvailable bool, err error) {
 	return d > 0, err
 }
 
-func (i *Input) Read() Message {
+func (i *Input) Read() uint32 {
 	var e C.PmEvent
 	if n := C.Pm_Read(i.stream, &e, C.int32_t(1)); n > 0 {
-		status := int(e.message) & 0xFF
-		return Message{
-			Channel: int(status & 0x0F),
-			Command: int(status & 0xF0),
-			Data1:   int((e.message >> 8) & 0xFF),
-			Data2:   int((e.message >> 16) & 0xFF),
-		}
+		return uint32(e.message)
 	}
-	return Message{}
+	return 0
 }

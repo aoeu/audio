@@ -16,18 +16,18 @@ import (
 )
 
 type Port struct {
-	isOpen bool
-	events chan Event
+	isOpen   bool
+	messages chan Message
 }
 
 func (p *Port) Open() error {
 	p.isOpen = true
-	p.events = make(chan Event, BufferSize)
+	p.messages = make(chan Message, BufferSize)
 	return nil
 }
 
 func (p *Port) Close() error {
-	close(p.events)
+	close(p.messages)
 	p.isOpen = false
 	return nil
 }
@@ -49,7 +49,7 @@ func (s *SystemPort) Close() error {
 	if s.isOpen {
 		s.isOpen = false
 		s.stop <- true
-		close(s.events)
+		close(s.messages)
 	}
 	return nil
 }
@@ -78,8 +78,8 @@ func (s *SystemInPort) Open() error {
 func (s SystemInPort) Run() {
 	for {
 		select {
-		case e := <-s.events:
-			if err := s.Output.Write(e); err != nil {
+		case m := <-s.messages:
+			if err := s.Output.Write(m); err != nil {
 				panic(err)
 			}
 		case <-s.stop:
@@ -119,19 +119,19 @@ func (s SystemOutPort) Run() {
 				time.Sleep(1 * time.Millisecond)
 				continue
 			}
-			m := s.Input.Read()
+			m := newMessage(s.Input.Read())
 			switch m.Command {
 			case NOTE_ON:
-				s.events <- NoteOn{m.Channel, m.Data1, m.Data2}
+				s.messages <- NoteOn{m.Channel, m.Data1, m.Data2}
 			case NOTE_OFF:
 				// A NoteOn with velocity 0 (Data2) is arguably a Note Off.
-				s.events <- NoteOff{m.Channel, m.Data1, 0}
+				s.messages <- NoteOff{m.Channel, m.Data1, 0}
 			case CONTROL_CHANGE:
 				name, ok := ControlChangeNames[m.Data1]
 				if !ok {
 					name = "Unknown"
 				}
-				s.events <- ControlChange{m.Channel, m.Data1, m.Data2, name}
+				s.messages <- ControlChange{m.Channel, m.Data1, m.Data2, name}
 			default:
 				fmt.Printf("Unknown message type received and ignored: %+v", m)
 			}

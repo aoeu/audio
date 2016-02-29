@@ -22,14 +22,14 @@ type Device struct {
 }
 
 type Wires struct {
-	In  chan Event // MIDI Messages inbound to the device are received from the In channel.
-	Out chan Event // MIDI Messages outbound from the device are received from the Out channel.
+	In  chan Message // MIDI Messages inbound to the device are received from the In channel.
+	Out chan Message // MIDI Messages outbound from the device are received from the Out channel.
 }
 
 func NewWires() *Wires {
 	return &Wires{
-		In:  make(chan Event),
-		Out: make(chan Event),
+		In:  make(chan Message),
+		Out: make(chan Message),
 	}
 }
 
@@ -122,8 +122,8 @@ func getSystemDevices() SystemDevices {
 			}
 		}
 		p := Port{
-			isOpen: streamInfo.IsOpen,
-			events: make(chan Event),
+			isOpen:   streamInfo.IsOpen,
+			messages: make(chan Message),
 		}
 		sp := SystemPort{
 			Port: p,
@@ -133,10 +133,10 @@ func getSystemDevices() SystemDevices {
 		switch {
 		case streamInfo.IsOutput: // An output stream is for an input port.
 			d.in = &SystemInPort{SystemPort: sp, Output: portmidi.NewOutput(i)}
-			d.Wires.In = d.in.events
+			d.Wires.In = d.in.messages
 		case streamInfo.IsInput: // An input stream is for an output port.
 			d.out = &SystemOutPort{SystemPort: sp, Input: portmidi.NewInput(i)}
-			d.Wires.Out = d.out.events
+			d.Wires.Out = d.out.messages
 		}
 		devices[streamInfo.Name] = d
 	}
