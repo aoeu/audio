@@ -1,180 +1,87 @@
 package controller
 
 import (
-	"github.com/aoeu/audio/midi"
 	"fmt"
+	"github.com/aoeu/audio/midi"
 	"github.com/tarm/goserial"
 	"io"
 )
 
+// TODO(aoeu): Update to github.com/tarm/serial
+// TODO(aoeu): Assert this code even potentially works against hardware.
+
 const (
 	debug      = false
 	bufferSize = 10
+	baudRate   = 115200
 )
 
 // Implements Device
 type Monome struct {
-	inPort  *midi.FakePort
-	outPort *MonomePort
+	// TODO(aoeu): Figure out how to write to the monome and implement an input port.
+	out *Port
 }
 
-func NewMonome() (m Monome, err error) {
-	outPort, err := NewMonomePort()
-	m = Monome{&midi.FakePort{}, outPort}
-	m.outPort.IsInputPort = false
-	m.inPort.IsInputPort = true
-	return
+type Port struct {
+	midi.Port
+	devicePath string
+	serialPort io.ReadWriteCloser
+	serialData chan []byte
 }
 
-func (m Monome) Open() (err error) {
-	if debug {
-		fmt.Println("Monome Open()")
-	}
-	m.inPort.Open()
-	m.outPort.Open()
-	return nil
-}
-
-func (m Monome) Close() (err error) {
-	if debug {
-		fmt.Println("Monome Close()")
-	}
-	m.InPort().Close()
-	m.OutPort().Close()
-	return nil
-}
-
-func (m Monome) Run() {
-	if debug {
-		fmt.Println("Monome Run()")
-	}
-	if m.InPort().IsOpen() {
-		go m.InPort().Run()
-	}
-	if m.OutPort().IsOpen() {
-		go m.OutPort().Run()
+func NewPort() *Port {
+	return &Port{
+		midi.Port:  midi.NewPort(false),
+		devicePath: "/dev/tty.usbserial-m64-0851", // TODO(aoeu): Don't hardcode the device.
+		serialData: make(chan []byte),
 	}
 }
 
-func (m Monome) InPort() midi.Port {
-	return m.inPort
+func (p *Port) Open() error {
+	p.isOpen = true
+	c := &serial.Config{Name: p.devicePath, Baud: baudRate}
+	var err error
+	p.serialPort, err = serial.OpenPort(c)
+	return err
 }
 
-func (m Monome) OutPort() midi.Port {
-	return m.outPort
+func (p *Port) Close() error {
+	p.serialPort.Close()
+	p.midi.Port.Close()
 }
 
-// Implements Port
-type MonomePort struct {
-	IsInputPort    bool
-	isOpen         bool
-	noteOns        chan midi.Note
-	noteOffs       chan midi.Note
-	controlChanges chan midi.ControlChange
-	connection     io.ReadWriteCloser
-	stop           chan bool
-	serialData     chan []byte
-}
-
-func NewMonomePort() (m *MonomePort, err error) {
-	m = &MonomePort{}
-	c := &serial.Config{Name: "/dev/tty.usbserial-m64-0851", Baud: 115200}
-	m.connection, err = serial.OpenPort(c)
-
-	if err != nil {
-		panic(err)
-	}
-	return
-}
-
-func (m *MonomePort) Open() error {
-	if debug {
-		fmt.Println("MonomePort Open()")
-	}
-	m.isOpen = true
-	m.noteOns = make(chan midi.Note, bufferSize)
-	m.noteOffs = make(chan midi.Note, bufferSize)
-	m.controlChanges = make(chan midi.ControlChange, bufferSize)
-	m.stop = make(chan bool, 1)
-	m.serialData = make(chan []byte)
-	return nil
-}
-
-func (m *MonomePort) Close() error {
-	if debug {
-		fmt.Println("MonomePort Close()")
-	}
-	m.connection.Close()
-	m.isOpen = false
-	return nil
-}
-
-func (m MonomePort) IsOpen() bool {
-	return m.isOpen
-}
-
-func (m MonomePort) Run() {
-	if m.isOpen {
-		if m.IsInputPort {
-			m.RunInPort()
-		} else {
-			m.RunOutPort()
-		}
-	}
-}
-
-func (m MonomePort) RunInPort() {
-	if debug {
-		fmt.Println("MonomePort RunInPort()")
-	}
-	// Empty until we can figure out what to write to monome.
-}
-
-func (m MonomePort) RunOutPort() {
-	if debug {
-		fmt.Println("MonomePort RunOutPort()")
-	}
-	go func() {
-		buffer := make([]byte, 128)
-		for {
-			select {
-			case <-m.stop:
-				m.stop <- true
-				return
-			default:
-				n, _ := m.connection.Read(buffer)
-				for i := 0; i < n; i += 2 {
-					m.serialData <- []byte{buffer[i], buffer[i+1]}
-				}
-			}
-		}
-	}()
+func (p *Port) Connect() {
+	go p.readFromSerialPort()
 	for {
 		select {
-		case <-m.stop:
+		case <-p.disconnect:
+			// TODO(aoeu): Is this needed? p.disconnect <- true
 			return
-		case msg := <-m.serialData:
+		case msg := <-p.serialData:
 			msgType := msg[0]
 			buttonNum := int(msg[1])
 			switch msgType {
 			case 0: // Note On
-				m.NoteOns() <- midi.Note{0, buttonNum, 127}
+				p.messages <- midi.NoteOn{Channel: 0, Key: buttonNum, Velocity: 127}
 			case 16: // Note Off
-				m.NoteOffs() <- midi.Note{0, buttonNum, 0}
+				p.messages <- midi.NoteOff{Channel: 0, Key: buttonNum}
 			}
-			fmt.Println(msg)
 		}
 	}
 }
 
-func (m MonomePort) NoteOns() chan midi.Note {
-	return m.noteOns
-}
-
-func (m MonomePort) NoteOffs() chan midi.Note {
-	return m.noteOffs
-}
-
-func (m MonomePort) ControlChanges() chan midi.ControlChange {
-	return m.controlChanges
+func (p *Port) readFromSerialPort() {
+	buffer := make([]byte, 128)
+	for {
+		select {
+		case <-p.disconnect:
+			p.disconnect <- true
+			return
+		default:
+			n, _ := p.serialPort.Read(buffer)
+			for i := 0; i < n; i += 2 {
+				p.serialData <- []byte{buffer[i], buffer[i+1]}
+			}
+		}
+	}
 }
