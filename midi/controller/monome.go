@@ -22,6 +22,12 @@ type Monome struct {
 	out *Port
 }
 
+func NewMonome() *Monome {
+	return &Monome{
+		out: NewPort(),
+	}
+}
+
 type Port struct {
 	midi.Port
 	devicePath string

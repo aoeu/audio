@@ -74,9 +74,8 @@ func ExampleMonome() {
 	}
 	iac1 := devices["IAC Driver Bus 1"]
 	monome, err := NewMonome()
-	fmt.Println(monome, err)
 	monome.Open()
-	go monome.Run()
+	go monome.Connect()
 	pipe, _ := midi.NewPipe(monome, iac1)
 	go pipe.Run()
 	c := make(chan bool, 1)
