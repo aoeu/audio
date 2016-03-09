@@ -21,48 +21,43 @@ TODO: All of this could be replaced with the io package.
 // A Pipe transmits MIDI data from a device's MIDI output to another device's MIDI input.
 // Implements Connector, one to one.
 type Pipe struct {
-	From Device
-	To   Device
+	From       *Device
+	To         *Device
 	disconnect chan bool
 }
 
 // Creates a new Pipe, opening the devices sent as parameters.
-func NewPipe(from, to Device) (pipe Pipe, err error) {
-	pipe = Pipe{from, to, make(chan bool, 1)}
-	err = pipe.From.Open()
-	if err != nil {
-		return Pipe{}, err
+func NewPipe(from, to *Device) *Pipe {
+	return &Pipe{
+		From:       from,
+		To:         to,
+		disconnect: make(chan bool, 1),
 	}
-	err = pipe.To.Open()
-	if err != nil {
-		return Pipe{}, err
+}
+
+func (p *Pipe) Open() error {
+	if err := p.From.Open(); err != nil {
+		return err
 	}
-	return
+	return p.To.Open()
 }
 
 // Ends transmission of MIDI data and closes the connected MIDI devices.
-func (p Pipe) Stop() (err error) {
+func (p Pipe) Close() error {
 	p.disconnect <- true
-	err = p.From.Close()
-	if err != nil {
-		return
+	if err := p.From.Close(); err != nil {
+		return err
 	}
-	err = p.To.Close()
-	return
+	return p.To.Close()
 }
 
-// TODO: Should the Connect method be named "Start" instead? Think in context of the `go` keyword.
 // Begins transmission of MIDI data between the connected MIDI devices.
 func (p Pipe) Connect() {
 	go p.From.Connect()
 	go p.To.Connect()
 	for {
 		select {
-		case e, ok := <-p.From.Out:
-			if !ok { // TODO(aoeu): What is this check for?
-				return
-			}
-			p.To.In <- e
+		case p.To.In <- <-p.From.Out:
 		case <-p.disconnect:
 			return
 		}
@@ -72,29 +67,31 @@ func (p Pipe) Connect() {
 // A Router transmits MIDI data from one MIDI device to many MIDI devices.
 // Implements Connector, one to many.
 type Router struct {
-	From Device
-	To   []Device
+	From       Device
+	To         []Device
 	disconnect chan bool
 }
 
 // Creates a new Router and opens MIDI devices sent as parameters.
-func NewRouter(from Device, to ...Device) (r Router, err error) {
-	r = Router{from, to, make(chan bool, 1)}
-	err = r.From.Open()
-	if err != nil {
-		return Router{}, err
+func NewRouter(from Device, to ...Device) *Router {
+	return &Router{
+		From:       from,
+		To:         to,
+		disconnect: make(chan bool, 1),
 	}
+}
+
+func (r *Router) Open() error {
 	for _, to := range r.To {
-		err = to.Open()
-		if err != nil {
-			return Router{}, err
+		if err := to.Open(); err != nil {
+			return err
 		}
 	}
-	return
+	return r.From.Open()
 }
 
 // Ends transmission of MIDI data and closes the connected MIDI devices.
-func (r Router) Stop() (err error) {
+func (r *Router) Close() (err error) {
 	r.disconnect <- true
 	err = r.From.Close()
 	if err != nil {
@@ -110,7 +107,7 @@ func (r Router) Stop() (err error) {
 }
 
 // Begins transmission of MIDI data between the connected MIDI devices.
-func (r Router) Connect() {
+func (r *Router) Connect() {
 	go r.From.Connect()
 	for _, to := range r.To {
 		go to.Connect()
@@ -135,45 +132,41 @@ func (r Router) Connect() {
 // A Funnel merges MIDI data from many MIDI devices and transmits the data to one MIDI device.
 // Implements Connector, many to one.
 type Funnel struct {
-	From []Device
-	To   Device
+	From       []*Device
+	To         *Device
 	disconnect chan bool
 }
 
 // Creates a new Funnel and open's the MIDI devices sent as parameters.
-func NewFunnel(to Device, from ...Device) (f Funnel, err error) {
-	f = Funnel{from, to, make(chan bool, 1)}
-	err = f.To.Open()
-	if err != nil {
-		return Funnel{}, err
+func NewFunnel(to *Device, from ...*Device) *Funnel {
+	return &Funnel{From: from,
+		To:         to,
+		disconnect: make(chan bool, 1),
 	}
+}
+
+func (f *Funnel) Open() error {
 	for _, from := range f.From {
-		err = from.Open()
-		if err != nil {
-			return Funnel{}, err
+		if err := from.Open(); err != nil {
+			return err
 		}
 	}
-	return
+	return f.To.Open()
 }
 
 // Ends transmission of MIDI data and closes the connected MIDI devices.
-func (f Funnel) Stop() (err error) {
+func (f *Funnel) Close() error {
 	f.disconnect <- true
-	err = f.To.Close()
-	if err != nil {
-		return
-	}
 	for _, from := range f.From {
-		err = from.Close()
-		if err != nil {
-			return
+		if err := from.Close(); err != nil {
+			return err
 		}
 	}
-	return
+	return f.To.Close()
 }
 
-// Begins transmission of MIDI data between the connected MIDI devices.
-func (f Funnel) Connect() {
+// Begins transmission of MIDI data between the associated MIDI devices.
+func (f *Funnel) Connect() {
 	go f.To.Connect()
 	for i := 0; i < len(f.From); i++ { // Perplexing bug: range doesn't work here.
 		from := f.From[i]
@@ -181,8 +174,7 @@ func (f Funnel) Connect() {
 		go func() {
 			for {
 				select {
-				case e := <-from.Out:
-					f.To.In <- e
+				case f.To.In <- <-from.Out:
 				case <-f.disconnect:
 					f.disconnect <- true // Send disconnect again for the next goroutine.
 					return
@@ -195,35 +187,41 @@ func (f Funnel) Connect() {
 // A Chain connects a series of MIDI devices (like creating many, serially chained pipes).
 // Implements Connector, serially chained pipes.
 type Chain struct {
-	Devices []Device
-	pipes   []Pipe
+	Devices []*Device
+	pipes   []*Pipe
 }
 
 // Creates a new Chain and open's the attached devices.
-func NewChain(devices ...Device) (c Chain, err error) {
+func NewChain(devices ...*Device) *Chain {
 	numDevices := len(devices)
-	c = Chain{devices, make([]Pipe, numDevices-1)}
+	c := Chain{devices, make([]*Pipe, numDevices-1)}
 	for i := 1; i < numDevices; i++ {
-		pipe, err := NewPipe(c.Devices[i-1], c.Devices[i])
-		if err != nil {
-			return Chain{}, err
-		}
-		c.pipes[i-1] = pipe
+		c.pipes[i-1] = NewPipe(c.Devices[i-1], c.Devices[i])
 	}
-	return
+	return &c
+}
+
+func (c *Chain) Open() error {
+	for _, p := range c.pipes {
+		if err := p.Open(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Ends transmission of MIDI data and closes the connected MIDI devices.
-func (c *Chain) Stop() (err error) {
-	for _, pipe := range c.pipes {
-		err = pipe.Stop()
+func (c *Chain) Close() error {
+	var err error
+	for _, p := range c.pipes {
+		err = p.Close()
 	}
 	return err
 }
 
 // Begins transmission of MIDI data between the connected MIDI devices.
-func (c Chain) Connect() {
-	for _, pipe := range c.pipes {
-		go pipe.Connect()
+func (c *Chain) Connect() {
+	for _, p := range c.pipes {
+		go p.Connect()
 	}
 }

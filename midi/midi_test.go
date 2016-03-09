@@ -9,26 +9,38 @@ These tests require IAC buses to be created on an OS X system, named:
 
 import (
 	"testing"
-	"time"
 )
 
-// TODO: Rename Event to Message since there's no time data.
-func TestPipe(t *testing.T) {
+func testSystemDevice(t *testing.T) {
 	devices, _ := GetDevices()
-	iac1, _ := devices["IAC Driver Bus 1"]
-	iac2, _ := devices["IAC Driver Bus 2"]
-	pipe, _ := NewPipe(iac1, iac2)
+	iac1, _ := devices["Midi Through Port-0"]
+	iac1.Open()
+	iac1.Connect()
+	iac1.Close()
+	devices.Shutdown()
+}
+
+func TestPipe(t *testing.T) {
+	src := NewDevice()
+	dst := NewDevice()
+	pipe := NewPipe(src, dst)
+	if err := pipe.Open(); err != nil {
+		t.Errorf("Could not open pipe: %v", err)
+	}
 	go pipe.Connect()
 	expected := NoteOn{0, 64, 127}
 	// Spoof a MIDI note coming into the device.
 	pipe.From.Out <- expected
-	actual := <-pipe.To.Out
+	actual := <-pipe.To.In
 	if expected != actual {
 		t.Errorf("Received %q from pipe instead of %q", actual, expected)
 	}
-	pipe.Stop()
-	devices.Shutdown()
+	pipe.Close()
 }
+
+/*
+
+TODO(aoeu): Reimplement all tests and examples.
 
 // TODO: This test crashes out sometimes. Why? (PortMidi init times?)
 func testChain(t *testing.T) {
@@ -51,7 +63,7 @@ func testChain(t *testing.T) {
 	devices.Shutdown()
 }
 
-func TestRouter(t *testing.T) {
+func testRouter(t *testing.T) {
 	devices, _ := GetDevices()
 	iac1 := devices["IAC Driver Bus 1"]
 	iac2 := devices["IAC Driver Bus 2"]
@@ -96,16 +108,7 @@ func testFunnel(t *testing.T) {
 	devices.Shutdown()
 }
 
-func TestSystemDevice(t *testing.T) {
-	devices, _ := GetDevices()
-	iac1, _ := devices["IAC Driver Bus 1"]
-	iac1.Open()
-	iac1.Run()
-	iac1.Close()
-	devices.Shutdown()
-}
-
-func TestThruDevice(t *testing.T) {
+func testThruDevice(t *testing.T) {
 	thru := NewThruDevice()
 	thru.Open()
 	go thru.Run()
@@ -117,6 +120,9 @@ func TestThruDevice(t *testing.T) {
 	}
 }
 
+*/
+
+/*
 func ExamplePipe() {
 	devices, _ := GetDevices()
 	nanoPad := devices["nanoPAD2 PAD"]
@@ -216,3 +222,5 @@ func ExampleNanopad() {
 
 	select {}
 }
+
+*/

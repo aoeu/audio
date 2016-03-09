@@ -16,16 +16,16 @@ import (
 )
 
 type Port struct {
-	isOpen   bool
-	messages chan Message
+	isOpen     bool
+	messages   chan Message
 	disconnect chan bool
 }
 
 func NewPort(isOpen bool) *Port {
 	return &Port{
-		isOpen : isOpen,
-		messages : make(chan Message, BufferSize),
-		disconnect : make(chan bool, 1),
+		isOpen:     isOpen,
+		messages:   make(chan Message, BufferSize),
+		disconnect: make(chan bool, 1),
 	}
 }
 
@@ -47,7 +47,7 @@ func (p *Port) Connect() {}
 
 type SystemPort struct {
 	Port
-	id   int
+	id int
 }
 
 func (s *SystemPort) Close() error {

@@ -27,9 +27,17 @@ func NewWires() *Wires {
 }
 
 type Device struct {
-	in *Port
+	in  *Port
 	out *Port
 	*Wires
+}
+
+func NewDevice() *Device {
+	return &Device{
+		in:    NewPort(false),
+		out:   NewPort(false),
+		Wires: NewWires(),
+	}
 }
 
 func (d *Device) Open() error {
@@ -57,8 +65,8 @@ func (s Device) Connect() {
 
 // Implements Device, used to route MIDI data.
 type ThruDevice struct {
-	in   *Port
-	out  *Port
+	in         *Port
+	out        *Port
 	disconnect chan bool
 	*Wires
 }
@@ -66,10 +74,10 @@ type ThruDevice struct {
 // Creates a new thru device.
 func NewThruDevice() *ThruDevice {
 	return &ThruDevice{
-		in:    &Port{},
-		out:   &Port{},
-		disconnect:  make(chan bool, 1),
-		Wires: NewWires(),
+		in:         &Port{},
+		out:        &Port{},
+		disconnect: make(chan bool, 1),
+		Wires:      NewWires(),
 	}
 }
 
