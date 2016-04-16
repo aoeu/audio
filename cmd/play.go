@@ -1,12 +1,12 @@
 package main
 
 import (
-	"audio"
+	"flag"
+	"fmt"
+	"github.com/aoeu/audio"
 	"log"
 	"os"
 	"time"
-	"flag"
-	"fmt"
 )
 
 func check(err error) {
@@ -19,12 +19,11 @@ var usage = `
 ` + os.Args[0] + ` -file aSoundFile.wav -samplerate 48000 -volume 100
 `
 
-
 func main() {
 	args := struct {
-		filepath string
+		filepath   string
 		sampleRate int
-		volume int
+		volume     int
 	}{}
 	flag.StringVar(&args.filepath, "file", "", "The filepath of the WAVE format sound file to play.")
 	flag.IntVar(&args.sampleRate, "samplerate", 48000, "The sample rate at which to play the sound file.")
@@ -42,7 +41,7 @@ func main() {
 	s.AddClip(clip, 64)
 	s.RunAtRate(args.sampleRate)
 	log.Println("Playing audio file " + args.filepath)
-	s.Play(64, float32(args.volume) / 100.0)
+	s.Play(64, float32(args.volume)/100.0)
 	<-time.After(clip.LenMilliseconds())
 	log.Println("Done playing audio file.")
 }

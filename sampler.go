@@ -115,15 +115,8 @@ func (s *Sampler) RunAtRate(sampleRate int) error {
 	if err := portaudio.Initialize(); err != nil {
 		return err
 	}
-	h, err := portaudio.DefaultHostApi()
-	if err != nil {
-		return err
-	}
-	p := portaudio.LowLatencyParameters(h.DefaultInputDevice, h.DefaultOutputDevice)
-	p.Input.Channels = 0
-	p.Output.Channels = 2
-	//s.stream, err = portaudio.OpenDefaultStream(0, 2, float64(sampleRate), 0, s.processAudio)
-	s.stream, err = portaudio.OpenStream(p, s.processAudio)
+	var err error
+	s.stream, err = portaudio.OpenDefaultStream(0, 2, float64(sampleRate), 0, s.processAudio)
 	if err != nil {
 		return err
 	}
