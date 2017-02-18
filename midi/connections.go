@@ -1,6 +1,7 @@
 package midi
 
-// #cgo LDFLAGS: -lportmidi
+// #cgo CFLAGS: -I/opt/local/include
+// #cgo LDFLAGS: -L/opt/local/lib -lportmidi
 // #include <portmidi.h>
 import "C"
 
