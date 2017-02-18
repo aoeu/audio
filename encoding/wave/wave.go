@@ -1,3 +1,4 @@
+// Package wave reads and writes waveform audio file format (WAVE) files.
 package wave
 
 // Relevant diagram:

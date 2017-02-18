@@ -1,3 +1,4 @@
+// Package audio provides generic interface for audio and MIDI.
 package audio
 
 import (

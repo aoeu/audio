@@ -1,3 +1,4 @@
+// Package portmidi provides high-level interface to the portmidi C library's streams and devices.
 package portmidi
 
 // #cgo CFLAGS: -I/opt/local/include

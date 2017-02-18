@@ -1,3 +1,4 @@
+// Package controller provides high-level interfaces for communicating with hardware MIDI controllers.
 package controller
 
 import (

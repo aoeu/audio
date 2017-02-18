@@ -1,3 +1,4 @@
+// Package midi defines high-level data types for MIDI data and high-level interfaces for MIDI Devices.
 package midi
 
 const (
