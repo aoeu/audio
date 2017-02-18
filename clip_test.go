@@ -77,12 +77,12 @@ func testIsEqual(t *testing.T) {
 	}
 }
 
-func TestLenMilliseconds(t *testing.T) {
+func TestDuration(t *testing.T) {
 	clip, err := NewClipFromWave(testSoundFilePath)
 	if err != nil {
 		t.Error(err)
 	}
-	actual := clip.LenMilliseconds()
+	actual := clip.Duration()
 	expected := 5000 * time.Millisecond
 	if actual != expected {
 		t.Errorf("Expected length of %d instead of %d\n", expected, actual)

@@ -26,7 +26,7 @@ func main() {
 	beat, err := audio.NewClipFromWave("samples/loops/beat.wav")
 	check(err)
 	numDivisions := 8
-	sleepLen := (beat.LenMilliseconds() / int64(numDivisions))
+	sleepLen := (beat.Duration() / int64(numDivisions))
 	sampler, err := audio.NewSampler(2)
 	check(err)
 	clips, err := beat.Split(numDivisions)

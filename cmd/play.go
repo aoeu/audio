@@ -35,13 +35,13 @@ func main() {
 	}
 	clip, err := audio.NewClipFromWave(args.filepath)
 	check(err)
-	log.Println(clip.LenMilliseconds())
+	log.Println(clip.Duration())
 	s, err := audio.NewSampler(2)
 	check(err)
 	s.AddClip(clip, 64)
 	s.RunAtRate(args.sampleRate)
 	log.Println("Playing audio file " + args.filepath)
 	s.Play(64, float32(args.volume)/100.0)
-	<-time.After(clip.LenMilliseconds())
+	<-time.After(clip.Duration())
 	log.Println("Done playing audio file.")
 }

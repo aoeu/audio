@@ -7,10 +7,10 @@ package wave
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"os"
 	"time"
 	"unsafe"
-	"fmt"
 )
 
 // Equivalent to enums for Wave format codes in C.
@@ -89,9 +89,8 @@ type File struct {
 }
 
 // Returns the length of playback time of the samples in milliseconds.
-func (w *File) LenMilliseconds() time.Duration {
-	length := int64(len(w.Samples)) / int64(w.Header.NumChannels)
-	return time.Duration((length / int64(w.Header.SampleRate)) * 1000) * time.Millisecond
+func (w *File) Duration() time.Duration {
+	return time.Duration(int64(len(w.Samples)) / int64(w.Header.NumChannels) / int64(w.Header.SampleRate) * 1000000000)
 }
 
 // Creates new, empty wave file structure.
@@ -136,7 +135,7 @@ func (w *File) Read() (err error) {
 		if err != nil {
 			return err
 		}
-		return errors.New(fmt.Sprintf("More bytes in sound file (%v) than allowed threshold (%v)", 
+		return errors.New(fmt.Sprintf("More bytes in sound file (%v) than allowed threshold (%v)",
 			info.Size(), BytesToReadThreshold))
 	}
 	var header Header

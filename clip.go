@@ -2,9 +2,9 @@
 package audio
 
 import (
-	"github.com/aoeu/audio/encoding/wave"
 	"errors"
 	"fmt"
+	"github.com/aoeu/audio/encoding/wave"
 	"strings"
 	"time"
 )
@@ -102,9 +102,8 @@ func (c *Clip) LenPerChannel() int {
 }
 
 // Returns the real-time playback length of the audio, in milliseconds.
-func (c *Clip) LenMilliseconds() time.Duration {
-	length := float32(c.LenPerChannel()) / float32(c.SampleRate) * 1000
-	return time.Duration(length) * time.Millisecond
+func (c *Clip) Duration() time.Duration {
+	return time.Duration(int64(float32(c.LenPerChannel()) / float32(c.SampleRate) * 1000000000))
 }
 
 // Append's another Clip's audio data to this Clip, increasing the length.

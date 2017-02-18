@@ -1,10 +1,10 @@
 package audio
 
 import (
-	"github.com/gordonklaus/portaudio"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/gordonklaus/portaudio"
 	"io/ioutil"
 )
 
