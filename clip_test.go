@@ -1,14 +1,15 @@
 package audio
 
 import (
-	"github.com/aoeu/audio/encoding/wave"
 	"testing"
 	"time"
+
+	"github.com/aoeu/audio/encoding/wave"
 )
 
 // TODO: Reinvestigate best sound files to use and restore tests.
 
-var testSoundFilePath string = "resources/testing/sine.wav"
+var testSoundFilePath string = "testdata/sine.wav"
 
 func TestNewClipFromWave(t *testing.T) {
 	c, _ := NewClipFromWave(testSoundFilePath)
