@@ -2,13 +2,15 @@ package main
 
 import (
 	"audio"
-	"log"
+	"fmt"
 	"midi"
+	"os"
 )
 
 func check(err error) {
 	if err != nil {
-		panic(err)
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		os.Exit(1)
 	}
 }
 

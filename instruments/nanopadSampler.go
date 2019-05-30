@@ -1,14 +1,18 @@
 package main
 
 import (
+	"flag"
+	"fmt"
+	"os"
+
 	"github.com/aoeu/audio"
 	"github.com/aoeu/audio/midi"
-	"flag"
 )
 
 func check(err error) {
 	if err != nil {
-		panic(err)
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		os.Exit(1)
 	}
 }
 
